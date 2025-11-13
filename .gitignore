@@ -1,0 +1,35 @@
+# .gitignore
+
+# Environment variables
+.env
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test
+*.test
+*.out
+
+# Go mod cache
+go.sum
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# WhatsApp session data
+*.db
+*.db-shm
+*.db-wal
+whatsmeow-store/
