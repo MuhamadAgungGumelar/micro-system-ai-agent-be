@@ -38,7 +38,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.Client"
+                                "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.Client"
                             }
                         }
                     }
@@ -68,7 +68,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.KnowledgeBase"
+                            "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.KnowledgeBase"
                         }
                     }
                 }
@@ -170,7 +170,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.Client": {
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.Client": {
             "type": "object",
             "properties": {
                 "business_name": {
@@ -199,7 +199,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.FAQ": {
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.FAQ": {
             "type": "object",
             "properties": {
                 "answer": {
@@ -210,7 +210,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.KnowledgeBase": {
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.KnowledgeBase": {
             "type": "object",
             "properties": {
                 "business_name": {
@@ -219,13 +219,13 @@ const docTemplate = `{
                 "faqs": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.FAQ"
+                        "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.FAQ"
                     }
                 },
                 "products": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.Product"
+                        "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.Product"
                     }
                 },
                 "tone": {
@@ -233,7 +233,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.Product": {
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.Product": {
             "type": "object",
             "properties": {
                 "name": {

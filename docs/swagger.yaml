@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.Client:
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.Client:
     properties:
       business_name:
         type: string
@@ -19,29 +19,29 @@ definitions:
       whatsapp_number:
         type: string
     type: object
-  github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.FAQ:
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.FAQ:
     properties:
       answer:
         type: string
       question:
         type: string
     type: object
-  github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.KnowledgeBase:
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.KnowledgeBase:
     properties:
       business_name:
         type: string
       faqs:
         items:
-          $ref: '#/definitions/github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.FAQ'
+          $ref: "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.FAQ"
         type: array
       products:
         items:
-          $ref: '#/definitions/github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.Product'
+          $ref: "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.Product"
         type: array
       tone:
         type: string
     type: object
-  github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.Product:
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.Product:
     properties:
       name:
         type: string
@@ -64,50 +64,50 @@ paths:
     get:
       description: Returns all clients with active subscription
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.Client'
+              $ref: "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.Client"
             type: array
       summary: Get all active clients
       tags:
-      - Clients
+        - Clients
   /knowledge-base:
     get:
       description: Returns knowledge base data for a client
       parameters:
-      - description: Client ID
-        in: query
-        name: client_id
-        required: true
-        type: string
+        - description: Client ID
+          in: query
+          name: client_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_MuhamadAgungGumelar_whatsapp-bot-saas-be_internal_models.KnowledgeBase'
+            $ref: "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_models.KnowledgeBase"
       summary: Get Knowledge Base by Client ID
       tags:
-      - KnowledgeBase
+        - KnowledgeBase
     post:
       consumes:
-      - application/json
+        - application/json
       description: Adds FAQ or product entry to knowledge base
       parameters:
-      - description: Knowledge base data
-        in: body
-        name: data
-        required: true
-        schema:
-          additionalProperties: true
-          type: object
+        - description: Knowledge base data
+          in: body
+          name: data
+          required: true
+          schema:
+            additionalProperties: true
+            type: object
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
@@ -117,14 +117,14 @@ paths:
             type: object
       summary: Add new knowledge base item
       tags:
-      - KnowledgeBase
+        - KnowledgeBase
   /webhook:
     post:
       consumes:
-      - application/json
+        - application/json
       description: Receive events from WhatsApp
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
@@ -134,18 +134,18 @@ paths:
             type: object
       summary: Webhook handler
       tags:
-      - Webhook
+        - Webhook
   /whatsapp/qr:
     get:
       description: Returns a QR Code image (base64) for the given client
       parameters:
-      - description: Client ID
-        in: query
-        name: client_id
-        required: true
-        type: string
+        - description: Client ID
+          in: query
+          name: client_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
@@ -155,5 +155,5 @@ paths:
             type: object
       summary: Generate WhatsApp QR Code for client
       tags:
-      - WhatsApp
+        - WhatsApp
 swagger: "2.0"

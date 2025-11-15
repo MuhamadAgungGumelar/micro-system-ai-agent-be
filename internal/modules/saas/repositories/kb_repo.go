@@ -3,7 +3,7 @@ package repositories
 import (
 	"database/sql"
 
-	"github.com/MuhamadAgungGumelar/whatsapp-bot-saas-be/internal/models"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/models"
 )
 
 type KBRepo interface {

@@ -1,4 +1,4 @@
-module github.com/MuhamadAgungGumelar/whatsapp-bot-saas-be
+module github.com/MuhamadAgungGumelar/micro-system-ai-agent-be
 
 go 1.25.4
 
