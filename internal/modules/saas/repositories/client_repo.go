@@ -1,93 +1,57 @@
 package repositories
 
 import (
-	"database/sql"
-
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/models"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type ClientRepo interface {
 	GetActiveClients() ([]models.Client, error)
 	GetByID(id string) (*models.Client, error)
+	Create(client *models.Client) error
+	Update(client *models.Client) error
+	Delete(id string) error
 }
 
 type clientRepo struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-func NewClientRepo(db *sql.DB) ClientRepo {
+func NewClientRepo(db *gorm.DB) ClientRepo {
 	return &clientRepo{db: db}
 }
 
 func (r *clientRepo) GetActiveClients() ([]models.Client, error) {
-	query := `
-		SELECT id, whatsapp_number, business_name, subscription_plan, 
-		       subscription_status, tone, COALESCE(module, 'saas'), created_at, updated_at
-		FROM clients 
-		WHERE subscription_status = 'active'
-	`
-
-	rows, err := r.db.Query(query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var list []models.Client
-	for rows.Next() {
-		var c models.Client
-		var createdAt, updatedAt sql.NullTime
-
-		err := rows.Scan(
-			&c.ID, &c.WhatsAppNumber, &c.BusinessName,
-			&c.SubscriptionPlan, &c.SubscriptionStatus, &c.Tone,
-			&c.Module, &createdAt, &updatedAt,
-		)
-
-		if err != nil {
-			continue
-		}
-
-		if createdAt.Valid {
-			c.CreatedAt = createdAt.Time
-		}
-		if updatedAt.Valid {
-			c.UpdatedAt = updatedAt.Time
-		}
-
-		list = append(list, c)
-	}
-
-	return list, nil
+	var clients []models.Client
+	err := r.db.Where("subscription_status = ?", "active").Find(&clients).Error
+	return clients, err
 }
 
 func (r *clientRepo) GetByID(id string) (*models.Client, error) {
-	query := `
-		SELECT id, whatsapp_number, business_name, subscription_plan, 
-		       subscription_status, tone, COALESCE(module, 'saas'), created_at, updated_at
-		FROM clients 
-		WHERE id = $1
-	`
-
-	var c models.Client
-	var createdAt, updatedAt sql.NullTime
-
-	err := r.db.QueryRow(query, id).Scan(
-		&c.ID, &c.WhatsAppNumber, &c.BusinessName,
-		&c.SubscriptionPlan, &c.SubscriptionStatus, &c.Tone,
-		&c.Module, &createdAt, &updatedAt,
-	)
-
+	// Parse UUID
+	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, err
 	}
 
-	if createdAt.Valid {
-		c.CreatedAt = createdAt.Time
-	}
-	if updatedAt.Valid {
-		c.UpdatedAt = updatedAt.Time
-	}
+	var client models.Client
+	err = r.db.First(&client, "id = ?", uid).Error
+	return &client, err
+}
 
-	return &c, nil
+func (r *clientRepo) Create(client *models.Client) error {
+	return r.db.Create(client).Error
+}
+
+func (r *clientRepo) Update(client *models.Client) error {
+	return r.db.Save(client).Error
+}
+
+func (r *clientRepo) Delete(id string) error {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	return r.db.Delete(&models.Client{}, "id = ?", uid).Error
 }

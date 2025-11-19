@@ -1,37 +1,66 @@
 package repositories
 
-import "database/sql"
+import (
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/models"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
 
 type ConversationRepo interface {
 	LogConversation(clientID, customerPhone, message, response string) error
+	GetByClientID(clientID string, limit int) ([]models.Conversation, error)
 }
 
 type conversationRepo struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-func NewConversationRepo(db *sql.DB) ConversationRepo {
+func NewConversationRepo(db *gorm.DB) ConversationRepo {
 	return &conversationRepo{db: db}
 }
 
 func (r *conversationRepo) LogConversation(clientID, customerPhone, message, response string) error {
-	query := `
-		INSERT INTO conversations (client_id, customer_phone, message_type, message_text, ai_response)
-		VALUES ($1, $2, 'incoming', $3, $4)
-	`
-
-	_, err := r.db.Exec(query, clientID, customerPhone, message, response)
+	// Parse UUID
+	uid, err := uuid.Parse(clientID)
 	if err != nil {
 		return err
 	}
 
-	// Update credits (best effort)
-	_, _ = r.db.Exec(`
-		UPDATE credits 
-		SET credits_used = credits_used + 1 
-		WHERE client_id = $1 
+	// Create conversation record
+	conversation := models.Conversation{
+		ClientID:      uid,
+		CustomerPhone: customerPhone,
+		MessageType:   "incoming",
+		MessageText:   message,
+		AIResponse:    response,
+	}
+
+	if err := r.db.Create(&conversation).Error; err != nil {
+		return err
+	}
+
+	// Update credits (best effort) - using raw SQL for complex date logic
+	r.db.Exec(`
+		UPDATE saas_credits
+		SET credits_used = credits_used + 1
+		WHERE client_id = ?
 		AND CURRENT_DATE BETWEEN period_start AND period_end
-	`, clientID)
+	`, uid)
 
 	return nil
+}
+
+func (r *conversationRepo) GetByClientID(clientID string, limit int) ([]models.Conversation, error) {
+	uid, err := uuid.Parse(clientID)
+	if err != nil {
+		return nil, err
+	}
+
+	var conversations []models.Conversation
+	err = r.db.Where("client_id = ?", uid).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&conversations).Error
+
+	return conversations, err
 }
