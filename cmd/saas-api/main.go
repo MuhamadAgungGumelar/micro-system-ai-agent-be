@@ -14,7 +14,7 @@ import (
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/shared/config"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/shared/database"
 
-	_ "github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/docs"
+	_ "github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/cmd/saas-api/docs"
 )
 
 // @title WhatsApp Bot SaaS API
@@ -35,16 +35,22 @@ func main() {
 	db := database.NewDB(cfg.DatabaseURL)
 	defer db.Close()
 
-	// Init repositories
-	clientRepo := repositories.NewClientRepo(db.DB)
-	kbRetriever := kb.NewRetriever(db.DB)
+	// Init repositories (use GORM instance)
+	clientRepo := repositories.NewClientRepo(db.GORM)
+	kbRetriever := kb.NewRetriever(db.GORM)
+
+	// Init WhatsApp service (untuk QR endpoint)
+	waService := whatsapp.NewService(cfg.WhatsAppStoreURL)
+
+	// Log provider info
+	log.Printf("📱 Using WhatsApp provider: %s", waService.GetProviderName())
 
 	// Init handlers
 	clientHandler := handlers.NewClientHandler(clientRepo)
 	kbHandler := handlers.NewKBHandler(kbRetriever)
-
-	// Init WhatsApp service (untuk QR endpoint)
-	waService := whatsapp.NewService(cfg.WhatsAppStoreURL)
+	healthHandler := handlers.NewHealthHandler(waService)
+	whatsappHandler := handlers.NewWhatsAppHandler(waService, clientRepo)
+	webhookHandler := handlers.NewWebhookHandler()
 
 	// Init Fiber app
 	app := fiber.New(fiber.Config{
@@ -58,12 +64,7 @@ func main() {
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	// Health check
-	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"status":  "ok",
-			"service": "saas-api",
-		})
-	})
+	app.Get("/health", healthHandler.GetHealth)
 
 	// Client routes
 	app.Get("/clients", clientHandler.GetActiveClients)
@@ -73,39 +74,13 @@ func main() {
 	app.Get("/knowledge-base", kbHandler.GetKnowledgeBase)
 	app.Post("/knowledge-base", kbHandler.AddKnowledgeItem)
 
-	// WhatsApp QR route
-	app.Get("/whatsapp/qr", func(c *fiber.Ctx) error {
-		clientID := c.Query("client_id")
-		if clientID == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "client_id is required",
-			})
-		}
+	// WhatsApp routes
+	app.Get("/whatsapp/qr", whatsappHandler.GetQRCode)
+	app.Post("/whatsapp/session/start", whatsappHandler.StartSession)
+	app.Get("/whatsapp/session/status", whatsappHandler.GetSessionStatus)
 
-		qr, err := waService.GenerateQR()
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": err.Error(),
-			})
-		}
-
-		c.Set("Content-Type", "image/png")
-		c.Set("Content-Disposition", "attachment; filename=whatsapp-qr.png")
-		return c.Send(qr)
-	})
-
-	// Webhook route (placeholder)
-	app.Post("/webhook", func(c *fiber.Ctx) error {
-		var payload map[string]interface{}
-		if err := c.BodyParser(&payload); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "invalid payload",
-			})
-		}
-
-		log.Printf("📨 Webhook received: %+v", payload)
-		return c.JSON(fiber.Map{"status": "received"})
-	})
+	// Webhook route
+	app.Post("/webhook", webhookHandler.ReceiveWebhook)
 
 	// Start server
 	port := cfg.Port
@@ -114,5 +89,7 @@ func main() {
 	}
 
 	log.Printf("✅ saas-api running at :%s", port)
+	log.Printf("📄 Swagger UI: http://localhost:%s/swagger/", port)
+	log.Printf("🔗 QR Endpoint: http://localhost:%s/whatsapp/qr", port)
 	log.Fatal(app.Listen(":" + port))
 }

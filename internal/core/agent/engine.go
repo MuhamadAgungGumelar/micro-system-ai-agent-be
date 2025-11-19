@@ -1,3 +1,4 @@
+// internal/core/agent/engine.go
 package agent
 
 import (
@@ -24,7 +25,6 @@ type Engine struct {
 	messageMutex    sync.Mutex
 }
 
-// ConversationLogger interface untuk log conversation (akan diimplementasi di module)
 type ConversationLogger interface {
 	LogConversation(clientID, customerPhone, message, response string) error
 }
@@ -46,14 +46,46 @@ func NewEngine(
 	}
 }
 
-// HandleMessage adalah entry point utama untuk semua pesan masuk
-func (e *Engine) HandleMessage(evt *events.Message) {
-	// Extract info
-	from := evt.Info.Sender.User // nomor pengirim
-	text := evt.Message.GetConversation()
+// HandleMessage adalah entry point untuk semua pesan masuk
+// Menerima interface{} untuk support multi-provider (whatsmeow, greenapi, waha)
+func (e *Engine) HandleMessage(evt interface{}) {
+	// Extract phone number dan message text dari berbagai provider
+	var from, text string
+
+	switch v := evt.(type) {
+	case *events.Message:
+		// Whatsmeow native
+		if v.Info.IsFromMe {
+			return // Skip pesan dari diri sendiri
+		}
+		from = v.Info.Sender.User
+		text = v.Message.GetConversation()
+
+	case *whatsapp.GreenAPIMessage:
+		// Green API
+		from = v.From
+		text = v.Message
+		// Remove @c.us suffix jika ada
+		if len(from) > 5 && from[len(from)-5:] == "@c.us" {
+			from = from[:len(from)-5]
+		}
+
+	case *whatsapp.WAHAMessage:
+		// WAHA
+		from = v.From
+		text = v.Message
+		// Remove @c.us suffix jika ada
+		if len(from) > 5 && from[len(from)-5:] == "@c.us" {
+			from = from[:len(from)-5]
+		}
+
+	default:
+		log.Printf("⚠️ Unknown message type: %T", evt)
+		return
+	}
 
 	if text == "" {
-		return // Ignore non-text messages untuk saat ini
+		return
 	}
 
 	// Rate limiting per user
@@ -86,13 +118,11 @@ func (e *Engine) HandleMessage(evt *events.Message) {
 	case "umkm":
 		e.handleUMKMMessage(ctx, from, text)
 	default:
-		e.handleSaaSMessage(ctx, from, text) // Default fallback
+		e.handleSaaSMessage(ctx, from, text)
 	}
 }
 
-// handleSaaSMessage untuk module SaaS (knowledge base answering)
 func (e *Engine) handleSaaSMessage(ctx *tenant.TenantContext, from, text string) {
-	// Get knowledge base
 	kb, err := e.kbRetriever.GetKnowledgeBase(ctx.ClientID)
 	if err != nil {
 		log.Printf("❌ Failed to get KB for client %s: %v", ctx.ClientID, err)
@@ -100,10 +130,8 @@ func (e *Engine) handleSaaSMessage(ctx *tenant.TenantContext, from, text string)
 		return
 	}
 
-	// Build system prompt
 	systemPrompt := llm.BuildSystemPrompt(kb)
 
-	// Generate response
 	llmCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -113,13 +141,11 @@ func (e *Engine) handleSaaSMessage(ctx *tenant.TenantContext, from, text string)
 		reply = "Maaf, saya sedang tidak bisa menjawab saat ini."
 	}
 
-	// Send reply
 	if err := e.waService.SendMessage(from, reply); err != nil {
 		log.Printf("❌ Failed to send message: %v", err)
 		return
 	}
 
-	// Log conversation (async)
 	go func() {
 		if e.conversationLog != nil {
 			_ = e.conversationLog.LogConversation(ctx.ClientID, from, text, reply)
@@ -127,17 +153,12 @@ func (e *Engine) handleSaaSMessage(ctx *tenant.TenantContext, from, text string)
 	}()
 }
 
-// handleFarmasiMessage untuk module Farmasi (akan dikembangkan nanti)
 func (e *Engine) handleFarmasiMessage(ctx *tenant.TenantContext, from, text string) {
-	// TODO: Implement farmasi-specific logic
-	// Untuk saat ini, fallback ke SaaS handler
 	log.Printf("ℹ️ Farmasi module not yet implemented, using SaaS handler")
 	e.handleSaaSMessage(ctx, from, text)
 }
 
-// handleUMKMMessage untuk module UMKM (akan dikembangkan nanti)
 func (e *Engine) handleUMKMMessage(ctx *tenant.TenantContext, from, text string) {
-	// TODO: Implement UMKM-specific logic
 	log.Printf("ℹ️ UMKM module not yet implemented, using SaaS handler")
 	e.handleSaaSMessage(ctx, from, text)
 }

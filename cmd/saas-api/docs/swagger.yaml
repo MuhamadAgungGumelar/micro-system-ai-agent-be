@@ -1,0 +1,264 @@
+basePath: /
+definitions:
+  llm.FAQ:
+    properties:
+      answer:
+        type: string
+      question:
+        type: string
+    type: object
+  llm.KnowledgeBase:
+    properties:
+      businessName:
+        type: string
+      faqs:
+        items:
+          $ref: '#/definitions/llm.FAQ'
+        type: array
+      products:
+        items:
+          $ref: '#/definitions/llm.Product'
+        type: array
+      tone:
+        type: string
+    type: object
+  llm.Product:
+    properties:
+      name:
+        type: string
+      price:
+        format: float64
+        type: number
+    type: object
+  models.Client:
+    properties:
+      business_name:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      module:
+        description: '"saas", "farmasi", "umkm"'
+        type: string
+      subscription_plan:
+        type: string
+      subscription_status:
+        type: string
+      tone:
+        type: string
+      updated_at:
+        type: string
+      whatsapp_number:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@whatsapp-saas.com
+    name: API Support
+  description: API documentation for WhatsApp Bot SaaS (Modular Architecture)
+  license:
+    name: MIT
+  termsOfService: http://swagger.io/terms/
+  title: WhatsApp Bot SaaS API
+  version: "2.0"
+paths:
+  /clients:
+    get:
+      description: Returns all clients with active subscription
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Client'
+            type: array
+      summary: Get all active clients
+      tags:
+      - Clients
+  /clients/{id}:
+    get:
+      description: Returns a single client by ID
+      parameters:
+      - description: Client ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Client'
+      summary: Get client by ID
+      tags:
+      - Clients
+  /health:
+    get:
+      description: Check if API is alive
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Service health check
+      tags:
+      - Health
+  /knowledge-base:
+    get:
+      description: Returns knowledge base data for a client
+      parameters:
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/llm.KnowledgeBase'
+      summary: Get Knowledge Base by Client ID
+      tags:
+      - KnowledgeBase
+    post:
+      consumes:
+      - application/json
+      description: Adds FAQ or product entry to knowledge base
+      parameters:
+      - description: Knowledge base data
+        in: body
+        name: data
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Add new knowledge base item
+      tags:
+      - KnowledgeBase
+  /webhook:
+    post:
+      consumes:
+      - application/json
+      description: Receive webhook events from WhatsApp Provider
+      parameters:
+      - description: Webhook payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: WhatsApp webhook receiver
+      tags:
+      - Webhook
+  /whatsapp/qr:
+    get:
+      description: Generate QR code for WhatsApp authentication
+      parameters:
+      - default: default
+        description: Session ID
+        in: query
+        name: session_id
+        type: string
+      produces:
+      - image/png
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get WhatsApp QR Code
+      tags:
+      - WhatsApp
+  /whatsapp/session/start:
+    post:
+      consumes:
+      - application/json
+      description: Start a new WhatsApp session for a client
+      parameters:
+      - description: Session data
+        in: body
+        name: data
+        required: true
+        schema:
+          properties:
+            client_id:
+              type: string
+            session_id:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Start WhatsApp session
+      tags:
+      - WhatsApp
+  /whatsapp/session/status:
+    get:
+      description: Check if WhatsApp session is connected
+      parameters:
+      - default: default
+        description: Session ID
+        in: query
+        name: session_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get WhatsApp session status
+      tags:
+      - WhatsApp
+swagger: "2.0"

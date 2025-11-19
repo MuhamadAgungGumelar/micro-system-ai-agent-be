@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"go.mau.fi/whatsmeow/types/events"
 
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/agent"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/kb"
@@ -33,15 +32,14 @@ func main() {
 	db := database.NewDB(cfg.DatabaseURL)
 	defer db.Close()
 
-	// Init core services
-	// TEMPORARY: Force SQLite for WhatsApp store (more stable)
-	waService := whatsapp.NewService(cfg.WhatsAppStoreURL) // Empty string = use SQLite
+	// Init core services (use GORM instance)
+	waService := whatsapp.NewService(cfg.WhatsAppStoreURL)
 	llmClient := llm.NewClient(cfg.OpenAIKey)
-	kbRetriever := kb.NewRetriever(db.DB)
-	tenantResolver := tenant.NewResolver(db.DB)
+	kbRetriever := kb.NewRetriever(db.GORM)
+	tenantResolver := tenant.NewResolver(db.DB) // Keep sql.DB for now (uses raw SQL)
 
-	// Init conversation logger (dari module saas)
-	convRepo := repositories.NewConversationRepo(db.DB)
+	// Init conversation logger
+	convRepo := repositories.NewConversationRepo(db.GORM)
 
 	// Init agent engine
 	agentEngine := agent.NewEngine(
@@ -52,6 +50,9 @@ func main() {
 		convRepo,
 	)
 
+	// Log provider yang digunakan
+	log.Info().Str("provider", waService.GetProviderName()).Msg("📱 WhatsApp Provider")
+
 	// Connect WhatsApp
 	log.Info().Msg("🔌 Connecting to WhatsApp...")
 	if err := waService.Connect(); err != nil {
@@ -60,55 +61,18 @@ func main() {
 
 	// Start listening to messages
 	log.Info().Msg("👂 Listening for WhatsApp messages...")
-	err := waService.StartListening(func(evt interface{}) {
-		switch v := evt.(type) {
-		case *events.Message:
-			if !v.Info.IsFromMe {
-				agentEngine.HandleMessage(v)
-			}
-
-		case *events.LoggedOut:
-			log.Warn().Msg("⚠️ WhatsApp session logged out - device was removed by server")
-			log.Warn().Msg("💡 This usually happens with personal WhatsApp accounts")
-			log.Warn().Msg("💡 Consider using WhatsApp Business account or WhatsApp Business API")
-			log.Warn().Msg("🔄 Attempting to reconnect in 10 seconds...")
-
-			// Auto-reconnect after logout
-			go func() {
-				time.Sleep(10 * time.Second)
-				log.Info().Msg("🔄 Reconnecting to WhatsApp...")
-				if err := waService.Connect(); err != nil {
-					log.Error().Err(err).Msg("Failed to reconnect")
-				} else {
-					log.Info().Msg("✅ Reconnected successfully!")
-				}
-			}()
-
-		case *events.Connected:
-			log.Info().Msg("✅ WhatsApp connected successfully")
-
-		case *events.Disconnected:
-			log.Warn().Msg("⚠️ WhatsApp disconnected - attempting reconnect...")
-			go func() {
-				time.Sleep(5 * time.Second)
-				if err := waService.Connect(); err != nil {
-					log.Error().Err(err).Msg("Failed to reconnect")
-				}
-			}()
-
-		case *events.StreamError:
-			log.Error().Interface("error", v).Msg("Stream error occurred")
-		}
-	})
+	err := waService.StartListening(agentEngine.HandleMessage)
 
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to start listening")
 	}
 
-	// Start keep-alive ping (helps prevent session timeout)
+	// Start keep-alive (untuk whatsmeow, no-op untuk provider lain)
 	keepAliveCtx, cancelKeepAlive := context.WithCancel(context.Background())
 	defer cancelKeepAlive()
 	go waService.StartKeepAlive(keepAliveCtx)
+
+	log.Info().Msg("✅ Agent core is running. Press Ctrl+C to stop.")
 
 	// Wait for shutdown signal
 	sig := make(chan os.Signal, 1)
