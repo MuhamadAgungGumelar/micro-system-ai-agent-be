@@ -39,6 +39,12 @@ type WhatsAppProvider interface {
 
 	// GetProviderName return nama provider untuk logging
 	GetProviderName() string
+
+	// StartTyping shows typing indicator to the user
+	StartTyping(phoneNumber string) error
+
+	// StopTyping stops/clears typing indicator
+	StopTyping(phoneNumber string) error
 }
 
 // ProviderType untuk factory

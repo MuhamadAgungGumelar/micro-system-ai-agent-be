@@ -236,3 +236,35 @@ func (w *WhatsmeowProvider) StartKeepAlive(ctx context.Context) {
 		}
 	}
 }
+
+// StartTyping shows typing indicator (Whatsmeow implementation)
+func (w *WhatsmeowProvider) StartTyping(phoneNumber string) error {
+	if w.client == nil || !w.client.IsConnected() {
+		return fmt.Errorf("whatsmeow client not connected")
+	}
+
+	// Parse JID from phone number
+	jid, err := types.ParseJID(phoneNumber + "@s.whatsapp.net")
+	if err != nil {
+		return fmt.Errorf("invalid phone number: %w", err)
+	}
+
+	ctx := context.Background()
+	return w.client.SendChatPresence(ctx, jid, types.ChatPresenceComposing, types.ChatPresenceMediaText)
+}
+
+// StopTyping clears typing indicator (Whatsmeow implementation)
+func (w *WhatsmeowProvider) StopTyping(phoneNumber string) error {
+	if w.client == nil || !w.client.IsConnected() {
+		return fmt.Errorf("whatsmeow client not connected")
+	}
+
+	// Parse JID from phone number
+	jid, err := types.ParseJID(phoneNumber + "@s.whatsapp.net")
+	if err != nil {
+		return fmt.Errorf("invalid phone number: %w", err)
+	}
+
+	ctx := context.Background()
+	return w.client.SendChatPresence(ctx, jid, types.ChatPresencePaused, types.ChatPresenceMediaText)
+}

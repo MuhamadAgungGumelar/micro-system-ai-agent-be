@@ -4,7 +4,12 @@
       "Bash(go get:*)",
       "Bash(go run:*)",
       "Bash(timeout 10 go run:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)",
+      "Bash(docker run:*)",
+      "Bash(curl:*)",
+      "Bash(docker logs:*)"
     ],
     "deny": [],
     "ask": []
