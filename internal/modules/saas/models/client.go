@@ -15,7 +15,7 @@ type Client struct {
 	SubscriptionStatus string    `gorm:"column:subscription_status;type:text;default:'active'" json:"subscription_status"`
 	Tone               string    `gorm:"column:tone;type:text;default:'neutral'" json:"tone"`
 	WADeviceID         string    `gorm:"column:wa_device_id;type:text" json:"wa_device_id"`
-	SessionID          string    `gorm:"column:session_id;type:text" json:"session_id"` // WhatsApp session ID for multi-session providers
+	WhatsAppSessionID  string    `gorm:"column:whatsapp_session_id;type:text" json:"whatsapp_session_id"` // WhatsApp session ID for multi-session providers (WAHA, etc)
 	CreatedAt          time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
 	UpdatedAt          time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 }

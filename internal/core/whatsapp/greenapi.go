@@ -296,6 +296,21 @@ func (g *GreenAPIProvider) StartKeepAlive(ctx context.Context) {
 	log.Println("ℹ️ Green API doesn't require manual keep-alive")
 }
 
+// StartTyping shows typing indicator (stub for Green API)
+func (g *GreenAPIProvider) StartTyping(phoneNumber string) error {
+	// Green API typing indicator support would go here
+	// Currently not implemented - Green API may not support this feature
+	log.Printf("⚠️ Typing indicator not implemented for Green API")
+	return nil
+}
+
+// StopTyping clears typing indicator (stub for Green API)
+func (g *GreenAPIProvider) StopTyping(phoneNumber string) error {
+	// Green API typing indicator support would go here
+	log.Printf("⚠️ Typing indicator not implemented for Green API")
+	return nil
+}
+
 // GreenAPIMessage adapter untuk compatibility dengan existing code
 type GreenAPIMessage struct {
 	From    string

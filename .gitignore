@@ -33,3 +33,5 @@ Thumbs.db
 *.db-shm
 *.db-wal
 whatsmeow-store/
+
+documentation

@@ -60,11 +60,14 @@ func (w *WAHAProvider) Connect() error {
 
 	body, _ := io.ReadAll(resp.Body)
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+	// 200 = success, 201 = created, 409 = already exists, 422 = already started
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
+		log.Printf("✅ WAHA session '%s' started", w.sessionID)
+	} else if resp.StatusCode == http.StatusConflict || resp.StatusCode == http.StatusUnprocessableEntity {
+		log.Printf("ℹ️ WAHA session '%s' already exists/started", w.sessionID)
+	} else {
 		return fmt.Errorf("WAHA returned status %d: %s", resp.StatusCode, string(body))
 	}
-
-	log.Printf("✅ WAHA session '%s' started", w.sessionID)
 
 	// Check status
 	time.Sleep(2 * time.Second)
@@ -420,6 +423,86 @@ func (w *WAHAProvider) IsConnected() bool {
 func (w *WAHAProvider) StartKeepAlive(ctx context.Context) {
 	// WAHA handles connection maintenance internally
 	log.Println("ℹ️ WAHA handles keep-alive internally")
+}
+
+// SetPresence sets presence status (typing, recording, paused, online, offline)
+func (w *WAHAProvider) SetPresence(chatID, presence string) error {
+	endpoint := fmt.Sprintf("%s/api/%s/presence", w.baseURL, w.sessionID)
+
+	payload := map[string]string{
+		"chatId":   chatID,
+		"presence": presence,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if w.apiKey != "" {
+		req.Header.Set("X-Api-Key", w.apiKey)
+	}
+
+	resp, err := w.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to set presence: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("WAHA returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// StartTyping sets typing indicator for a chat
+func (w *WAHAProvider) StartTyping(phoneNumber string) error {
+	// Format: 628123456789@c.us
+	chatID := phoneNumber
+	if len(phoneNumber) > 0 && phoneNumber[0] == '+' {
+		chatID = phoneNumber[1:] + "@c.us"
+	} else if !contains(phoneNumber, "@c.us") {
+		chatID = phoneNumber + "@c.us"
+	}
+
+	return w.SetPresence(chatID, "typing")
+}
+
+// StopTyping clears typing indicator for a chat
+func (w *WAHAProvider) StopTyping(phoneNumber string) error {
+	// Format: 628123456789@c.us
+	chatID := phoneNumber
+	if len(phoneNumber) > 0 && phoneNumber[0] == '+' {
+		chatID = phoneNumber[1:] + "@c.us"
+	} else if !contains(phoneNumber, "@c.us") {
+		chatID = phoneNumber + "@c.us"
+	}
+
+	return w.SetPresence(chatID, "paused")
+}
+
+// Helper function
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && s[len(s)-len(substr):] == substr ||
+	       (len(s) > len(substr) && len(substr) > 0 && s[:len(substr)] == substr) ||
+	       (len(s) >= len(substr) && len(substr) > 0 && findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 // WAHAMessage adapter untuk compatibility

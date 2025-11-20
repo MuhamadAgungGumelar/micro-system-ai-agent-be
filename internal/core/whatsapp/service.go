@@ -114,6 +114,16 @@ func (s *Service) GetProviderName() string {
 	return s.provider.GetProviderName()
 }
 
+// StartTyping shows typing indicator to the user
+func (s *Service) StartTyping(phoneNumber string) error {
+	return s.provider.StartTyping(phoneNumber)
+}
+
+// StopTyping stops/clears typing indicator
+func (s *Service) StopTyping(phoneNumber string) error {
+	return s.provider.StopTyping(phoneNumber)
+}
+
 // --- Backward compatibility helpers ---
 
 // SendChatPresence untuk whatsmeow compatibility

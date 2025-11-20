@@ -91,8 +91,8 @@ func (h *WhatsAppHandler) StartSession(c *fiber.Ctx) error {
 		if err != nil {
 			log.Printf("⚠️ Failed to get client: %v", err)
 		} else {
-			// Update client with session_id
-			client.SessionID = req.SessionID
+			// Update client with whatsapp_session_id
+			client.WhatsAppSessionID = req.SessionID
 			if err := h.clientRepo.Update(client); err != nil {
 				log.Printf("⚠️ Failed to update client session: %v", err)
 			} else {

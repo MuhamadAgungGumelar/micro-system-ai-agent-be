@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/swagger"
 
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/kb"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/llm"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/whatsapp"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/handlers"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/repositories"
@@ -37,20 +38,25 @@ func main() {
 
 	// Init repositories (use GORM instance)
 	clientRepo := repositories.NewClientRepo(db.GORM)
+	conversationRepo := repositories.NewConversationRepo(db.GORM)
 	kbRetriever := kb.NewRetriever(db.GORM)
 
-	// Init WhatsApp service (untuk QR endpoint)
+	// Init LLM service (multi-provider support)
+	llmService := llm.NewService()
+
+	// Init WhatsApp service
 	waService := whatsapp.NewService(cfg.WhatsAppStoreURL)
 
 	// Log provider info
 	log.Printf("📱 Using WhatsApp provider: %s", waService.GetProviderName())
+	log.Printf("🤖 Using LLM provider: %s", llmService.GetProviderName())
 
 	// Init handlers
 	clientHandler := handlers.NewClientHandler(clientRepo)
 	kbHandler := handlers.NewKBHandler(kbRetriever)
 	healthHandler := handlers.NewHealthHandler(waService)
 	whatsappHandler := handlers.NewWhatsAppHandler(waService, clientRepo)
-	webhookHandler := handlers.NewWebhookHandler()
+	webhookHandler := handlers.NewWebhookHandler(clientRepo, conversationRepo, kbRetriever, llmService, waService)
 
 	// Init Fiber app
 	app := fiber.New(fiber.Config{

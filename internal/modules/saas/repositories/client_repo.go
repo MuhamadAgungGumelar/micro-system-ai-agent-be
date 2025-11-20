@@ -9,6 +9,8 @@ import (
 type ClientRepo interface {
 	GetActiveClients() ([]models.Client, error)
 	GetByID(id string) (*models.Client, error)
+	GetByWhatsAppNumber(whatsappNumber string) (*models.Client, error)
+	GetClientByWhatsAppSession(sessionID string) (*models.Client, error)
 	Create(client *models.Client) error
 	Update(client *models.Client) error
 	Delete(id string) error
@@ -37,6 +39,20 @@ func (r *clientRepo) GetByID(id string) (*models.Client, error) {
 
 	var client models.Client
 	err = r.db.First(&client, "id = ?", uid).Error
+	return &client, err
+}
+
+func (r *clientRepo) GetByWhatsAppNumber(whatsappNumber string) (*models.Client, error) {
+	var client models.Client
+	err := r.db.Where("whatsapp_number = ? AND subscription_status = ?", whatsappNumber, "active").
+		First(&client).Error
+	return &client, err
+}
+
+func (r *clientRepo) GetClientByWhatsAppSession(sessionID string) (*models.Client, error) {
+	var client models.Client
+	err := r.db.Where("whatsapp_session_id = ? AND subscription_status = ?", sessionID, "active").
+		First(&client).Error
 	return &client, err
 }
 
