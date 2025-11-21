@@ -87,7 +87,11 @@ func (w *WAHAProvider) Connect() error {
 }
 
 func (w *WAHAProvider) getSessionStatus() (string, error) {
-	endpoint := fmt.Sprintf("%s/api/sessions/%s", w.baseURL, w.sessionID)
+	return w.getSessionStatusByID(w.sessionID)
+}
+
+func (w *WAHAProvider) getSessionStatusByID(sessionID string) (string, error) {
+	endpoint := fmt.Sprintf("%s/api/sessions/%s", w.baseURL, sessionID)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
@@ -287,6 +291,20 @@ func (w *WAHAProvider) GenerateQR(sessionID string) ([]byte, error) {
 	}
 
 	log.Printf("🔍 Generating QR for session: %s", sessionID)
+
+	// Check session status first
+	status, err := w.getSessionStatusByID(sessionID)
+	if err != nil {
+		log.Printf("⚠️ Failed to get session status: %v", err)
+	} else {
+		log.Printf("📱 Current session status: %s", status)
+
+		// If already authenticated, return friendly message
+		if status == "WORKING" {
+			message := fmt.Sprintf("✅ Session '%s' is already authenticated and working. No QR code needed.", sessionID)
+			return []byte(message), nil
+		}
+	}
 
 	// Ensure session exists first
 	if err := w.StartSession(sessionID); err != nil {
@@ -503,6 +521,121 @@ func findSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// StopSession stops a WAHA session
+func (w *WAHAProvider) StopSession(sessionID string) error {
+	if sessionID == "" {
+		sessionID = w.sessionID
+	}
+
+	log.Printf("🛑 Stopping WAHA session: %s", sessionID)
+
+	endpoint := fmt.Sprintf("%s/api/sessions/%s/stop", w.baseURL, sessionID)
+
+	req, err := http.NewRequest("POST", endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if w.apiKey != "" {
+		req.Header.Set("X-Api-Key", w.apiKey)
+	}
+
+	resp, err := w.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to stop session: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("WAHA returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("✅ Session stopped: %s", sessionID)
+	return nil
+}
+
+// ConfigureWebhook configures webhook for a session
+func (w *WAHAProvider) ConfigureWebhook(sessionID, webhookURL string) error {
+	if sessionID == "" {
+		sessionID = w.sessionID
+	}
+
+	log.Printf("🔧 Configuring webhook for session: %s -> %s", sessionID, webhookURL)
+
+	endpoint := fmt.Sprintf("%s/api/sessions/%s", w.baseURL, sessionID)
+
+	payload := map[string]interface{}{
+		"config": map[string]interface{}{
+			"webhooks": []map[string]interface{}{
+				{
+					"url":           webhookURL,
+					"events":        []string{"message"},
+					"hmac":          nil,
+					"retries":       nil,
+					"customHeaders": nil,
+				},
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	req, err := http.NewRequest("PUT", endpoint, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if w.apiKey != "" {
+		req.Header.Set("X-Api-Key", w.apiKey)
+	}
+
+	resp, err := w.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to configure webhook: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("WAHA returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("✅ Webhook configured successfully for session: %s", sessionID)
+	return nil
+}
+
+// RestartSession stops and starts a session (useful for applying config changes)
+func (w *WAHAProvider) RestartSession(sessionID string) error {
+	if sessionID == "" {
+		sessionID = w.sessionID
+	}
+
+	log.Printf("🔄 Restarting WAHA session: %s", sessionID)
+
+	// Stop session
+	if err := w.StopSession(sessionID); err != nil {
+		log.Printf("⚠️ Failed to stop session (continuing anyway): %v", err)
+	}
+
+	// Wait a bit for session to fully stop
+	time.Sleep(2 * time.Second)
+
+	// Start session again
+	if err := w.StartSession(sessionID); err != nil {
+		return fmt.Errorf("failed to start session after stop: %w", err)
+	}
+
+	log.Printf("✅ Session restarted: %s", sessionID)
+	return nil
 }
 
 // WAHAMessage adapter untuk compatibility

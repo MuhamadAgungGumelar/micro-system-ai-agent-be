@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -46,7 +45,7 @@ type WAHAWebhookPayload struct {
 	Payload struct {
 		ID        string `json:"id"`
 		Timestamp int64  `json:"timestamp"`
-		From      string `json:"from"`      // Format: 628xxx@c.us
+		From      string `json:"from"` // Format: 628xxx@c.us
 		FromMe    bool   `json:"fromMe"`
 		To        string `json:"to"`
 		Body      string `json:"body"`
@@ -86,11 +85,11 @@ func (h *WebhookHandler) ReceiveWebhook(c *fiber.Ctx) error {
 	// - Body contains '@c.us' or '@s.whatsapp.net' (likely a system/connection event metadata)
 	// - From field is empty (invalid message)
 	if payload.Event != "message" ||
-	   payload.Payload.FromMe ||
-	   payload.Payload.Body == "" ||
-	   payload.Payload.From == "" ||
-	   strings.Contains(payload.Payload.Body, "@c.us") ||
-	   strings.Contains(payload.Payload.Body, "@s.whatsapp.net") {
+		payload.Payload.FromMe ||
+		payload.Payload.Body == "" ||
+		payload.Payload.From == "" ||
+		strings.Contains(payload.Payload.Body, "@c.us") ||
+		strings.Contains(payload.Payload.Body, "@s.whatsapp.net") {
 		log.Printf("⏭️ Skipping event - Event: %s, FromMe: %v, From: %s, Body: %s",
 			payload.Event, payload.Payload.FromMe, payload.Payload.From, payload.Payload.Body)
 		return c.JSON(fiber.Map{"status": "ignored"})
@@ -153,7 +152,7 @@ func (h *WebhookHandler) processMessage(sessionID, customerPhone, message string
 	}
 
 	// 4. Build system prompt with knowledge base
-	systemPrompt := buildSystemPrompt(knowledgeBase)
+	systemPrompt := llm.BuildSystemPrompt(knowledgeBase)
 
 	// 5. Call LLM to generate response
 	log.Printf("🤖 Calling LLM: %s", h.llmService.GetProviderName())
@@ -191,48 +190,9 @@ func extractPhoneNumber(from string) string {
 	return from
 }
 
-// buildSystemPrompt creates system prompt with knowledge base context
-func buildSystemPrompt(kb *llm.KnowledgeBase) string {
-	prompt := fmt.Sprintf(`Kamu adalah asisten AI untuk %s dengan tone %s.
-
-**Informasi Bisnis:**
-- Nama: %s
-- Tone: %s
-
-`, kb.BusinessName, kb.Tone, kb.BusinessName, kb.Tone)
-
-	// Add FAQs if available
-	if len(kb.FAQs) > 0 {
-		prompt += "**Frequently Asked Questions:**\n"
-		for i, faq := range kb.FAQs {
-			prompt += fmt.Sprintf("%d. Q: %s\n   A: %s\n", i+1, faq.Question, faq.Answer)
-		}
-		prompt += "\n"
-	}
-
-	// Add Products if available
-	if len(kb.Products) > 0 {
-		prompt += "**Daftar Produk:**\n"
-		for i, product := range kb.Products {
-			prompt += fmt.Sprintf("%d. %s - Rp %.0f\n", i+1, product.Name, product.Price)
-		}
-		prompt += "\n"
-	}
-
-	prompt += `**Instruksi:**
-- Jawab pertanyaan customer dengan ramah dan informatif
-- Gunakan informasi dari FAQ dan daftar produk di atas
-- Jika pertanyaan di luar knowledge base, arahkan customer untuk contact langsung
-- Gunakan tone yang sesuai dengan brand
-- Maksimal 2-3 kalimat per response
-- Jangan gunakan markdown formatting (bold, italic, dll)
-
-Contoh response yang baik:
-"Halo! Kopi Arabica Premium kami harganya Rp 50.000. Ini kopi pilihan dari petani lokal dengan rasa yang premium. Mau pesan berapa pak/bu?"
-`
-
-	return prompt
-}
+// DEPRECATED: buildSystemPrompt is no longer used - we now use llm.BuildSystemPrompt() instead
+// This function is kept for reference only
+// func buildSystemPrompt(kb *llm.KnowledgeBase) string { ... }
 
 // Helper to pretty print webhook payload for debugging
 func prettyPrint(v interface{}) string {

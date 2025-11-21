@@ -11,8 +11,8 @@ import (
 
 // DB wraps both GORM and sql.DB for backward compatibility
 type DB struct {
-	*sql.DB       // Keep for backward compatibility
-	GORM *gorm.DB // New GORM instance
+	*sql.DB          // Keep for backward compatibility
+	GORM    *gorm.DB // New GORM instance
 }
 
 // NewDB creates a new database connection using GORM

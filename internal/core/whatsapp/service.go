@@ -124,6 +124,31 @@ func (s *Service) StopTyping(phoneNumber string) error {
 	return s.provider.StopTyping(phoneNumber)
 }
 
+// ConfigureWebhook configures webhook for WAHA provider
+func (s *Service) ConfigureWebhook(sessionID, webhookURL string) error {
+	// Check if provider is WAHA
+	if waha, ok := s.provider.(*WAHAProvider); ok {
+		return waha.ConfigureWebhook(sessionID, webhookURL)
+	}
+	return fmt.Errorf("webhook configuration only supported for WAHA provider")
+}
+
+// StopSession stops a session (WAHA specific)
+func (s *Service) StopSession(sessionID string) error {
+	if waha, ok := s.provider.(*WAHAProvider); ok {
+		return waha.StopSession(sessionID)
+	}
+	return fmt.Errorf("stop session only supported for WAHA provider")
+}
+
+// RestartSession restarts a session (WAHA specific)
+func (s *Service) RestartSession(sessionID string) error {
+	if waha, ok := s.provider.(*WAHAProvider); ok {
+		return waha.RestartSession(sessionID)
+	}
+	return fmt.Errorf("restart session only supported for WAHA provider")
+}
+
 // --- Backward compatibility helpers ---
 
 // SendChatPresence untuk whatsmeow compatibility

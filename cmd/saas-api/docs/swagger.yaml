@@ -1,5 +1,27 @@
 basePath: /
 definitions:
+  handlers.KnowledgeBaseRequest:
+    properties:
+      client_id:
+        example: 7a393015-15b8-4bcf-8ce6-840f753bfb1c
+        type: string
+      content:
+        type: object
+      tags:
+        example:
+        - order
+        - howto
+        items:
+          type: string
+        type: array
+      title:
+        example: Cara Order
+        type: string
+      type:
+        description: faq, product, service, policy, or any custom type
+        example: faq
+        type: string
+    type: object
   llm.FAQ:
     properties:
       answer:
@@ -38,9 +60,6 @@ definitions:
         type: string
       id:
         type: string
-      module:
-        description: '"saas", "farmasi", "umkm"'
-        type: string
       subscription_plan:
         type: string
       subscription_status:
@@ -49,7 +68,12 @@ definitions:
         type: string
       updated_at:
         type: string
+      wa_device_id:
+        type: string
       whatsapp_number:
+        type: string
+      whatsapp_session_id:
+        description: WhatsApp session ID for multi-session providers (WAHA, etc)
         type: string
     type: object
 host: localhost:8080
@@ -134,20 +158,27 @@ paths:
     post:
       consumes:
       - application/json
-      description: Adds FAQ or product entry to knowledge base
+      description: 'Adds knowledge base entry with flexible JSONB content. The ''content''
+        field accepts any JSON structure. Examples: For FAQ use {"question":"...","answer":"..."},
+        for Product use {"name":"...","price":50000,"description":"...","stock":100}'
       parameters:
-      - description: Knowledge base data
+      - description: Knowledge base data - content field accepts any JSON structure
         in: body
         name: data
         required: true
         schema:
-          additionalProperties: true
-          type: object
+          $ref: '#/definitions/handlers.KnowledgeBaseRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
           schema:
             additionalProperties:
               type: string
@@ -159,7 +190,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Receive webhook events from WhatsApp Provider
+      description: Receive webhook events from WhatsApp Provider (WAHA/GreenAPI)
       parameters:
       - description: Webhook payload
         in: body
@@ -206,6 +237,37 @@ paths:
             additionalProperties: true
             type: object
       summary: Get WhatsApp QR Code
+      tags:
+      - WhatsApp
+  /whatsapp/session/restart:
+    post:
+      consumes:
+      - application/json
+      description: Stop and start a WhatsApp session
+      parameters:
+      - description: Session data
+        in: body
+        name: data
+        required: true
+        schema:
+          properties:
+            session_id:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Restart WhatsApp session
       tags:
       - WhatsApp
   /whatsapp/session/start:
@@ -259,6 +321,70 @@ paths:
             additionalProperties: true
             type: object
       summary: Get WhatsApp session status
+      tags:
+      - WhatsApp
+  /whatsapp/session/stop:
+    post:
+      consumes:
+      - application/json
+      description: Stop a WhatsApp session
+      parameters:
+      - description: Session data
+        in: body
+        name: data
+        required: true
+        schema:
+          properties:
+            session_id:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Stop WhatsApp session
+      tags:
+      - WhatsApp
+  /whatsapp/webhook/configure:
+    post:
+      consumes:
+      - application/json
+      description: Configure webhook URL for receiving WhatsApp messages
+      parameters:
+      - description: Webhook configuration
+        in: body
+        name: data
+        required: true
+        schema:
+          properties:
+            session_id:
+              type: string
+            webhook_url:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Configure webhook for WhatsApp session
       tags:
       - WhatsApp
 swagger: "2.0"

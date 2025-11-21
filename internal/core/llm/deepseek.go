@@ -3,6 +3,8 @@ package llm
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -28,6 +30,9 @@ func NewDeepSeekProvider(apiKey string, model string, temperature float32, maxTo
 	// DeepSeek uses OpenAI-compatible API with custom base URL
 	config := openai.DefaultConfig(apiKey)
 	config.BaseURL = "https://api.deepseek.com"
+	config.HTTPClient = &http.Client{
+		Timeout: 60 * time.Second, // Increase timeout to 60 seconds
+	}
 
 	return &DeepSeekProvider{
 		client:      openai.NewClientWithConfig(config),

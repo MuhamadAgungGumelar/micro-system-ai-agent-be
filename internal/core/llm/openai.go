@@ -3,6 +3,8 @@ package llm
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -25,8 +27,14 @@ func NewOpenAIProvider(apiKey string, model string, temperature float32, maxToke
 		maxTokens = 300
 	}
 
+	// Configure HTTP client with timeout
+	config := openai.DefaultConfig(apiKey)
+	config.HTTPClient = &http.Client{
+		Timeout: 60 * time.Second, // Increase timeout to 60 seconds
+	}
+
 	return &OpenAIProvider{
-		client:      openai.NewClient(apiKey),
+		client:      openai.NewClientWithConfig(config),
 		model:       model,
 		temperature: temperature,
 		maxTokens:   maxTokens,

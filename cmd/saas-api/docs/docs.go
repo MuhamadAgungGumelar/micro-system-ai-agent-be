@@ -124,7 +124,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Adds FAQ or product entry to knowledge base",
+                "description": "Adds knowledge base entry with flexible JSONB content. The 'content' field accepts any JSON structure. Examples: For FAQ use {\"question\":\"...\",\"answer\":\"...\"}, for Product use {\"name\":\"...\",\"price\":50000,\"description\":\"...\",\"stock\":100}",
                 "consumes": [
                     "application/json"
                 ],
@@ -137,13 +137,12 @@ const docTemplate = `{
                 "summary": "Add new knowledge base item",
                 "parameters": [
                     {
-                        "description": "Knowledge base data",
+                        "description": "Knowledge base data - content field accepts any JSON structure",
                         "name": "data",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/handlers.KnowledgeBaseRequest"
                         }
                     }
                 ],
@@ -156,13 +155,22 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             }
         },
         "/webhook": {
             "post": {
-                "description": "Receive webhook events from WhatsApp Provider",
+                "description": "Receive webhook events from WhatsApp Provider (WAHA/GreenAPI)",
                 "consumes": [
                     "application/json"
                 ],
@@ -231,6 +239,53 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/whatsapp/session/restart": {
+            "post": {
+                "description": "Stop and start a WhatsApp session",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "WhatsApp"
+                ],
+                "summary": "Restart WhatsApp session",
+                "parameters": [
+                    {
+                        "description": "Session data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "session_id": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -318,9 +373,137 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/whatsapp/session/stop": {
+            "post": {
+                "description": "Stop a WhatsApp session",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "WhatsApp"
+                ],
+                "summary": "Stop WhatsApp session",
+                "parameters": [
+                    {
+                        "description": "Session data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "session_id": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/whatsapp/webhook/configure": {
+            "post": {
+                "description": "Configure webhook URL for receiving WhatsApp messages",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "WhatsApp"
+                ],
+                "summary": "Configure webhook for WhatsApp session",
+                "parameters": [
+                    {
+                        "description": "Webhook configuration",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "session_id": {
+                                    "type": "string"
+                                },
+                                "webhook_url": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "handlers.KnowledgeBaseRequest": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string",
+                    "example": "7a393015-15b8-4bcf-8ce6-840f753bfb1c"
+                },
+                "content": {
+                    "type": "object"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "order",
+                        "howto"
+                    ]
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Cara Order"
+                },
+                "type": {
+                    "description": "faq, product, service, policy, or any custom type",
+                    "type": "string",
+                    "example": "faq"
+                }
+            }
+        },
         "llm.FAQ": {
             "type": "object",
             "properties": {
@@ -379,10 +562,6 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "module": {
-                    "description": "\"saas\", \"farmasi\", \"umkm\"",
-                    "type": "string"
-                },
                 "subscription_plan": {
                     "type": "string"
                 },
@@ -395,7 +574,14 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string"
                 },
+                "wa_device_id": {
+                    "type": "string"
+                },
                 "whatsapp_number": {
+                    "type": "string"
+                },
+                "whatsapp_session_id": {
+                    "description": "WhatsApp session ID for multi-session providers (WAHA, etc)",
                     "type": "string"
                 }
             }
