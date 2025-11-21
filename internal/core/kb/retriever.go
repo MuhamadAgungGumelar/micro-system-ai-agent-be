@@ -1,6 +1,8 @@
 package kb
 
 import (
+	"encoding/json"
+
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/llm"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/models"
 	"github.com/google/uuid"
@@ -45,11 +47,22 @@ func (r *Retriever) GetKnowledgeBase(clientID string) (*llm.KnowledgeBase, error
 
 	// Parse entries based on type
 	for _, entry := range entries {
+		// Unmarshal JSONB content
+		var content map[string]interface{}
+		contentBytes, err := entry.Content.MarshalJSON()
+		if err != nil {
+			continue // Skip if can't get JSON
+		}
+
+		if err := json.Unmarshal(contentBytes, &content); err != nil {
+			continue // Skip if can't unmarshal
+		}
+
 		switch entry.Type {
 		case "faq":
 			// Extract FAQ from JSONB content
-			if question, ok := entry.Content["question"].(string); ok {
-				if answer, ok := entry.Content["answer"].(string); ok {
+			if question, ok := content["question"].(string); ok {
+				if answer, ok := content["answer"].(string); ok {
 					kb.FAQs = append(kb.FAQs, llm.FAQ{
 						Question: question,
 						Answer:   answer,
@@ -59,9 +72,9 @@ func (r *Retriever) GetKnowledgeBase(clientID string) (*llm.KnowledgeBase, error
 
 		case "product":
 			// Extract Product from JSONB content
-			if name, ok := entry.Content["name"].(string); ok {
+			if name, ok := content["name"].(string); ok {
 				price := 0.0
-				if p, ok := entry.Content["price"].(float64); ok {
+				if p, ok := content["price"].(float64); ok {
 					price = p
 				}
 				kb.Products = append(kb.Products, llm.Product{
@@ -69,6 +82,15 @@ func (r *Retriever) GetKnowledgeBase(clientID string) (*llm.KnowledgeBase, error
 					Price: price,
 				})
 			}
+
+		default:
+			// All other types (service, policy, promo, info, contact, etc.)
+			// Add to RawEntries for flexible handling
+			kb.RawEntries = append(kb.RawEntries, llm.RawKBEntry{
+				Type:    entry.Type,
+				Title:   entry.Title,
+				Content: content,
+			})
 		}
 	}
 

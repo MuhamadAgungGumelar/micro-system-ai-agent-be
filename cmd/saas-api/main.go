@@ -39,6 +39,7 @@ func main() {
 	// Init repositories (use GORM instance)
 	clientRepo := repositories.NewClientRepo(db.GORM)
 	conversationRepo := repositories.NewConversationRepo(db.GORM)
+	kbRepo := repositories.NewKBRepo(db.GORM)
 	kbRetriever := kb.NewRetriever(db.GORM)
 
 	// Init LLM service (multi-provider support)
@@ -53,7 +54,7 @@ func main() {
 
 	// Init handlers
 	clientHandler := handlers.NewClientHandler(clientRepo)
-	kbHandler := handlers.NewKBHandler(kbRetriever)
+	kbHandler := handlers.NewKBHandler(kbRetriever, kbRepo)
 	healthHandler := handlers.NewHealthHandler(waService)
 	whatsappHandler := handlers.NewWhatsAppHandler(waService, clientRepo)
 	webhookHandler := handlers.NewWebhookHandler(clientRepo, conversationRepo, kbRetriever, llmService, waService)
@@ -83,7 +84,10 @@ func main() {
 	// WhatsApp routes
 	app.Get("/whatsapp/qr", whatsappHandler.GetQRCode)
 	app.Post("/whatsapp/session/start", whatsappHandler.StartSession)
+	app.Post("/whatsapp/session/stop", whatsappHandler.StopSession)
+	app.Post("/whatsapp/session/restart", whatsappHandler.RestartSession)
 	app.Get("/whatsapp/session/status", whatsappHandler.GetSessionStatus)
+	app.Post("/whatsapp/webhook/configure", whatsappHandler.ConfigureWebhook)
 
 	// Webhook route
 	app.Post("/webhook", webhookHandler.ReceiveWebhook)

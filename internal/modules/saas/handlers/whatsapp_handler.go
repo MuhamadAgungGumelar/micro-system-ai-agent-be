@@ -138,3 +138,134 @@ func (h *WhatsAppHandler) GetSessionStatus(c *fiber.Ctx) error {
 		"provider":   h.whatsappService.GetProviderName(),
 	})
 }
+
+// StopSession godoc
+// @Summary Stop WhatsApp session
+// @Description Stop a WhatsApp session
+// @Tags WhatsApp
+// @Accept json
+// @Produce json
+// @Param data body object{session_id=string} true "Session data"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /whatsapp/session/stop [post]
+func (h *WhatsAppHandler) StopSession(c *fiber.Ctx) error {
+	var req struct {
+		SessionID string `json:"session_id"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request",
+		})
+	}
+
+	if req.SessionID == "" {
+		req.SessionID = "default"
+	}
+
+	log.Printf("🛑 Stopping session: %s", req.SessionID)
+
+	if err := h.whatsappService.StopSession(req.SessionID); err != nil {
+		log.Printf("❌ Failed to stop session: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":     "ok",
+		"message":    "Session stopped successfully",
+		"session_id": req.SessionID,
+	})
+}
+
+// RestartSession godoc
+// @Summary Restart WhatsApp session
+// @Description Stop and start a WhatsApp session
+// @Tags WhatsApp
+// @Accept json
+// @Produce json
+// @Param data body object{session_id=string} true "Session data"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /whatsapp/session/restart [post]
+func (h *WhatsAppHandler) RestartSession(c *fiber.Ctx) error {
+	var req struct {
+		SessionID string `json:"session_id"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request",
+		})
+	}
+
+	if req.SessionID == "" {
+		req.SessionID = "default"
+	}
+
+	log.Printf("🔄 Restarting session: %s", req.SessionID)
+
+	if err := h.whatsappService.RestartSession(req.SessionID); err != nil {
+		log.Printf("❌ Failed to restart session: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":     "ok",
+		"message":    "Session restarted successfully",
+		"session_id": req.SessionID,
+	})
+}
+
+// ConfigureWebhook godoc
+// @Summary Configure webhook for WhatsApp session
+// @Description Configure webhook URL for receiving WhatsApp messages
+// @Tags WhatsApp
+// @Accept json
+// @Produce json
+// @Param data body object{session_id=string,webhook_url=string} true "Webhook configuration"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /whatsapp/webhook/configure [post]
+func (h *WhatsAppHandler) ConfigureWebhook(c *fiber.Ctx) error {
+	var req struct {
+		SessionID  string `json:"session_id"`
+		WebhookURL string `json:"webhook_url"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request",
+		})
+	}
+
+	if req.SessionID == "" {
+		req.SessionID = "default"
+	}
+
+	if req.WebhookURL == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "webhook_url is required",
+		})
+	}
+
+	log.Printf("🔧 Configuring webhook for session %s: %s", req.SessionID, req.WebhookURL)
+
+	if err := h.whatsappService.ConfigureWebhook(req.SessionID, req.WebhookURL); err != nil {
+		log.Printf("❌ Failed to configure webhook: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":      "ok",
+		"message":     "Webhook configured successfully",
+		"session_id":  req.SessionID,
+		"webhook_url": req.WebhookURL,
+	})
+}

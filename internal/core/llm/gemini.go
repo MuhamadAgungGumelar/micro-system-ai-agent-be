@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 type GeminiProvider struct {
@@ -33,7 +34,9 @@ func NewGeminiProvider(apiKey string, model string, temperature float32, maxToke
 		model:       model,
 		temperature: temperature,
 		maxTokens:   maxTokens,
-		client:      &http.Client{},
+		client: &http.Client{
+			Timeout: 60 * time.Second, // Increase timeout to 60 seconds
+		},
 	}
 }
 
