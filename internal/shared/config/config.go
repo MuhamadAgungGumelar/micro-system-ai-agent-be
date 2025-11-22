@@ -8,14 +8,18 @@ import (
 )
 
 type Config struct {
-	DatabaseURL      string
-	WhatsAppStoreURL string
-	OpenAIKey        string
-	Port             string
-	Env              string
-	WameoAPIKey      string
-	WameoAPIURL      string
-	AgentCorePort    string
+	DatabaseURL         string
+	WhatsAppStoreURL    string
+	OpenAIKey           string
+	Port                string
+	Env                 string
+	WameoAPIKey         string
+	WameoAPIURL         string
+	AgentCorePort       string
+	OCRProvider         string // "google_vision", "ocrspace", or "tesseract"
+	GoogleVisionAPIKey  string
+	OCRSpaceAPIKey      string
+	TesseractLanguage   string // Language for Tesseract: "eng", "ind", or "eng+ind"
 }
 
 func LoadConfig() *Config {
@@ -24,14 +28,18 @@ func LoadConfig() *Config {
 	}
 
 	cfg := &Config{
-		DatabaseURL:      os.Getenv("DATABASE_URL"),
-		WhatsAppStoreURL: os.Getenv("WHATSAPP_STORE_URL"),
-		OpenAIKey:        os.Getenv("OPENAI_API_KEY"),
-		Port:             os.Getenv("PORT"),
-		Env:              os.Getenv("ENV"),
-		WameoAPIKey:      os.Getenv("WAMEO_API_KEY"),
-		WameoAPIURL:      os.Getenv("WAMEO_API_URL"),
-		AgentCorePort:    os.Getenv("AGENT_CORE_PORT"),
+		DatabaseURL:        os.Getenv("DATABASE_URL"),
+		WhatsAppStoreURL:   os.Getenv("WHATSAPP_STORE_URL"),
+		OpenAIKey:          os.Getenv("OPENAI_API_KEY"),
+		Port:               os.Getenv("PORT"),
+		Env:                os.Getenv("ENV"),
+		WameoAPIKey:        os.Getenv("WAMEO_API_KEY"),
+		WameoAPIURL:        os.Getenv("WAMEO_API_URL"),
+		AgentCorePort:      os.Getenv("AGENT_CORE_PORT"),
+		OCRProvider:        os.Getenv("OCR_PROVIDER"),
+		GoogleVisionAPIKey: os.Getenv("GOOGLE_VISION_API_KEY"),
+		OCRSpaceAPIKey:     os.Getenv("OCRSPACE_API_KEY"),
+		TesseractLanguage:  os.Getenv("TESSERACT_LANGUAGE"),
 	}
 
 	// Default values
@@ -47,6 +55,12 @@ func LoadConfig() *Config {
 	}
 	if cfg.AgentCorePort == "" {
 		cfg.AgentCorePort = "3000"
+	}
+	if cfg.OCRProvider == "" {
+		cfg.OCRProvider = "google_vision" // Default to Google Vision
+	}
+	if cfg.TesseractLanguage == "" {
+		cfg.TesseractLanguage = "eng" // Default to English
 	}
 
 	return cfg

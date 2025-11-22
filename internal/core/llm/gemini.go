@@ -26,7 +26,7 @@ func NewGeminiProvider(apiKey string, model string, temperature float32, maxToke
 		temperature = 0.7
 	}
 	if maxTokens == 0 {
-		maxTokens = 2048
+		maxTokens = 8192 // Increase for receipt parsing (needs more tokens for JSON output)
 	}
 
 	return &GeminiProvider{
@@ -128,13 +128,22 @@ func (p *GeminiProvider) GenerateResponse(ctx context.Context, systemPrompt, use
 		return "", fmt.Errorf("gemini error (model: %s, status: %d): %s", p.model, resp.StatusCode, string(body))
 	}
 
+	// Log raw response for debugging
+	fmt.Printf("🔍 Gemini raw response: %s\n", string(body))
+
 	var geminiResp geminiResponse
 	if err := json.Unmarshal(body, &geminiResp); err != nil {
 		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
+	// Log parsed response structure
+	fmt.Printf("🔍 Gemini candidates count: %d\n", len(geminiResp.Candidates))
+	if len(geminiResp.Candidates) > 0 {
+		fmt.Printf("🔍 Gemini parts count: %d\n", len(geminiResp.Candidates[0].Content.Parts))
+	}
+
 	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("no response from Gemini")
+		return "", fmt.Errorf("no response from Gemini (candidates: %d)", len(geminiResp.Candidates))
 	}
 
 	return geminiResp.Candidates[0].Content.Parts[0].Text, nil

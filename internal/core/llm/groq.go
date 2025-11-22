@@ -24,7 +24,7 @@ func NewGroqProvider(apiKey string, model string, temperature float32, maxTokens
 		temperature = 0.7
 	}
 	if maxTokens == 0 {
-		maxTokens = 2048
+		maxTokens = 8192
 	}
 
 	// Groq uses OpenAI-compatible API with custom base URL
