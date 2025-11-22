@@ -41,6 +41,11 @@ definitions:
         items:
           $ref: '#/definitions/llm.Product'
         type: array
+      rawEntries:
+        description: 'New: for all other types'
+        items:
+          $ref: '#/definitions/llm.RawKBEntry'
+        type: array
       tone:
         type: string
     type: object
@@ -51,6 +56,16 @@ definitions:
       price:
         format: float64
         type: number
+    type: object
+  llm.RawKBEntry:
+    properties:
+      content:
+        additionalProperties: true
+        type: object
+      title:
+        type: string
+      type:
+        type: string
     type: object
   models.Client:
     properties:
@@ -186,6 +201,83 @@ paths:
       summary: Add new knowledge base item
       tags:
       - KnowledgeBase
+  /ocr/process-receipt:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a receipt image, extract text using OCR, parse it, and create
+        a transaction record
+      parameters:
+      - description: Client ID
+        in: formData
+        name: client_id
+        required: true
+        type: string
+      - description: Receipt image file
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Process receipt image and create transaction
+      tags:
+      - OCR
+  /transactions:
+    get:
+      description: Retrieve transaction history for a specific client
+      parameters:
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - default: 50
+        description: Limit number of results
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get transactions for a client
+      tags:
+      - Transactions
   /webhook:
     post:
       consumes:

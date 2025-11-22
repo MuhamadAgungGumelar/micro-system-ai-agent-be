@@ -9,6 +9,7 @@ import (
 
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/kb"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/llm"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/ocr"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/whatsapp"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/handlers"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/repositories"
@@ -40,6 +41,7 @@ func main() {
 	clientRepo := repositories.NewClientRepo(db.GORM)
 	conversationRepo := repositories.NewConversationRepo(db.GORM)
 	kbRepo := repositories.NewKBRepo(db.GORM)
+	transactionRepo := repositories.NewTransactionRepo(db.GORM)
 	kbRetriever := kb.NewRetriever(db.GORM)
 
 	// Init LLM service (multi-provider support)
@@ -48,16 +50,31 @@ func main() {
 	// Init WhatsApp service
 	waService := whatsapp.NewService(cfg.WhatsAppStoreURL)
 
+	// Init OCR service (multi-provider support)
+	var ocrProvider ocr.Provider
+	switch cfg.OCRProvider {
+	case "ocrspace":
+		ocrProvider = ocr.NewOCRSpaceProvider(cfg.OCRSpaceAPIKey)
+	case "tesseract":
+		ocrProvider = ocr.NewTesseractProvider(cfg.TesseractLanguage)
+	default:
+		// Default to Google Cloud Vision
+		ocrProvider = ocr.NewGoogleVisionProvider(cfg.GoogleVisionAPIKey)
+	}
+	ocrService := ocr.NewService(ocrProvider)
+
 	// Log provider info
 	log.Printf("📱 Using WhatsApp provider: %s", waService.GetProviderName())
 	log.Printf("🤖 Using LLM provider: %s", llmService.GetProviderName())
+	log.Printf("🔍 Using OCR provider: %s", ocrService.GetProviderName())
 
 	// Init handlers
 	clientHandler := handlers.NewClientHandler(clientRepo)
 	kbHandler := handlers.NewKBHandler(kbRetriever, kbRepo)
 	healthHandler := handlers.NewHealthHandler(waService)
 	whatsappHandler := handlers.NewWhatsAppHandler(waService, clientRepo)
-	webhookHandler := handlers.NewWebhookHandler(clientRepo, conversationRepo, kbRetriever, llmService, waService)
+	webhookHandler := handlers.NewWebhookHandler(clientRepo, conversationRepo, transactionRepo, kbRetriever, llmService, waService, ocrService)
+	ocrHandler := handlers.NewOCRHandler(ocrService, llmService, transactionRepo)
 
 	// Init Fiber app
 	app := fiber.New(fiber.Config{
@@ -91,6 +108,10 @@ func main() {
 
 	// Webhook route
 	app.Post("/webhook", webhookHandler.ReceiveWebhook)
+
+	// OCR routes
+	app.Post("/ocr/process-receipt", ocrHandler.ProcessReceipt)
+	app.Get("/transactions", ocrHandler.GetTransactions)
 
 	// Start server
 	port := cfg.Port

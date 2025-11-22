@@ -105,7 +105,7 @@ func LoadProviderFromEnv() (*ProviderConfig, error) {
 		case ProviderGemini:
 			cfg.Model = "gemini-2.5-flash"
 		case ProviderGroq:
-			cfg.Model = "llama-3.1-70b-versatile"
+			cfg.Model = "llama-3.1-8b-instant"
 		case ProviderDeepSeek:
 			cfg.Model = "deepseek-chat"
 		case ProviderClaude:
@@ -115,7 +115,7 @@ func LoadProviderFromEnv() (*ProviderConfig, error) {
 
 	// Temperature
 	cfg.Temperature = 0.7
-	cfg.MaxTokens = 1024
+	cfg.MaxTokens = 8192
 
 	return cfg, nil
 }
