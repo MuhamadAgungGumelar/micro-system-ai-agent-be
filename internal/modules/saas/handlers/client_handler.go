@@ -18,7 +18,7 @@ func NewClientHandler(repo repositories.ClientRepo) *ClientHandler {
 // @Description Returns all clients with active subscription
 // @Tags Clients
 // @Produce json
-// @Success 200 {array} models.Client
+// @Success 200 {object} map[string]interface{}
 // @Router /clients [get]
 func (h *ClientHandler) GetActiveClients(c *fiber.Ctx) error {
 	clients, err := h.clientRepo.GetActiveClients()
@@ -37,7 +37,7 @@ func (h *ClientHandler) GetActiveClients(c *fiber.Ctx) error {
 // @Tags Clients
 // @Produce json
 // @Param id path string true "Client ID"
-// @Success 200 {object} models.Client
+// @Success 200 {object} map[string]interface{}
 // @Router /clients/{id} [get]
 func (h *ClientHandler) GetClientByID(c *fiber.Ctx) error {
 	id := c.Params("id")

@@ -13,6 +13,7 @@ import (
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/whatsapp"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/handlers"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/repositories"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/services"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/shared/config"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/shared/database"
 
@@ -42,6 +43,7 @@ func main() {
 	conversationRepo := repositories.NewConversationRepo(db.GORM)
 	kbRepo := repositories.NewKBRepo(db.GORM)
 	transactionRepo := repositories.NewTransactionRepo(db.GORM)
+	workflowRepo := repositories.NewWorkflowRepo(db.GORM)
 	kbRetriever := kb.NewRetriever(db.GORM)
 
 	// Init LLM service (multi-provider support)
@@ -68,13 +70,23 @@ func main() {
 	log.Printf("🤖 Using LLM provider: %s", llmService.GetProviderName())
 	log.Printf("🔍 Using OCR provider: %s", ocrService.GetProviderName())
 
+	// Init services
+	workflowService := services.NewWorkflowService(workflowRepo, db.GORM, waService, llmService)
+	if err := workflowService.Initialize(); err != nil {
+		log.Fatalf("Failed to initialize workflow service: %v", err)
+	}
+	defer workflowService.Shutdown()
+
+	webhookService := services.NewWebhookService(clientRepo, conversationRepo, transactionRepo, kbRetriever, llmService, waService, ocrService)
+
 	// Init handlers
 	clientHandler := handlers.NewClientHandler(clientRepo)
 	kbHandler := handlers.NewKBHandler(kbRetriever, kbRepo)
 	healthHandler := handlers.NewHealthHandler(waService)
 	whatsappHandler := handlers.NewWhatsAppHandler(waService, clientRepo)
-	webhookHandler := handlers.NewWebhookHandler(clientRepo, conversationRepo, transactionRepo, kbRetriever, llmService, waService, ocrService)
-	ocrHandler := handlers.NewOCRHandler(ocrService, llmService, transactionRepo)
+	webhookHandler := handlers.NewWebhookHandler(webhookService)
+	ocrHandler := handlers.NewOCRHandler(ocrService, llmService, transactionRepo, workflowService)
+	workflowHandler := handlers.NewWorkflowHandler(workflowService)
 
 	// Init Fiber app
 	app := fiber.New(fiber.Config{
@@ -112,6 +124,15 @@ func main() {
 	// OCR routes
 	app.Post("/ocr/process-receipt", ocrHandler.ProcessReceipt)
 	app.Get("/transactions", ocrHandler.GetTransactions)
+
+	// Workflow routes
+	app.Post("/workflows", workflowHandler.CreateWorkflow)
+	app.Get("/workflows", workflowHandler.ListWorkflows)
+	app.Get("/workflows/:id", workflowHandler.GetWorkflow)
+	app.Put("/workflows/:id", workflowHandler.UpdateWorkflow)
+	app.Delete("/workflows/:id", workflowHandler.DeleteWorkflow)
+	app.Post("/workflows/:id/execute", workflowHandler.ExecuteWorkflow)
+	app.Get("/workflows/:id/executions", workflowHandler.GetWorkflowExecutions)
 
 	// Start server
 	port := cfg.Port

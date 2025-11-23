@@ -9,6 +9,7 @@ import (
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/ocr"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/models"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/repositories"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/services"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
@@ -19,14 +20,16 @@ type OCRHandler struct {
 	ocrService        *ocr.Service
 	llmService        *llm.Service
 	transactionRepo   repositories.TransactionRepo
+	workflowService   *services.WorkflowService
 }
 
 // NewOCRHandler creates a new OCR handler
-func NewOCRHandler(ocrService *ocr.Service, llmService *llm.Service, transactionRepo repositories.TransactionRepo) *OCRHandler {
+func NewOCRHandler(ocrService *ocr.Service, llmService *llm.Service, transactionRepo repositories.TransactionRepo, workflowService *services.WorkflowService) *OCRHandler {
 	return &OCRHandler{
 		ocrService:      ocrService,
 		llmService:      llmService,
 		transactionRepo: transactionRepo,
+		workflowService: workflowService,
 	}
 }
 
@@ -163,6 +166,27 @@ func (h *OCRHandler) ProcessReceipt(c *fiber.Ctx) error {
 	}
 
 	log.Printf("💾 Transaction saved successfully: %s", transaction.ID.String())
+
+	// Trigger workflow event: transaction_created
+	if h.workflowService != nil {
+		go func() {
+			eventData := map[string]interface{}{
+				"transaction_id":   transaction.ID.String(),
+				"client_id":        transaction.ClientID.String(),
+				"total_amount":     transaction.TotalAmount,
+				"transaction_date": transaction.TransactionDate,
+				"store_name":       transaction.StoreName,
+				"items_count":      len(receiptData.Items),
+				"created_from":     transaction.CreatedFrom,
+				"source_type":      transaction.SourceType,
+				"ocr_confidence":   transaction.OCRConfidence,
+			}
+
+			if err := h.workflowService.HandleEvent(c.Context(), "transaction_created", eventData); err != nil {
+				log.Printf("⚠️ Failed to trigger workflows for transaction_created: %v", err)
+			}
+		}()
+	}
 
 	// Return success response
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
