@@ -30,7 +30,7 @@ func NewKBHandler(retriever *kb.Retriever, repo repositories.KBRepo) *KBHandler 
 // @Tags KnowledgeBase
 // @Produce json
 // @Param client_id query string true "Client ID"
-// @Success 200 {object} llm.KnowledgeBase
+// @Success 200 {object} map[string]interface{}
 // @Router /knowledge-base [get]
 func (h *KBHandler) GetKnowledgeBase(c *fiber.Ctx) error {
 	clientID := c.Query("client_id")

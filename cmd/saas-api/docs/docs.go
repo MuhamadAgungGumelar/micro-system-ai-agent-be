@@ -36,10 +36,8 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.Client"
-                            }
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -68,7 +66,8 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.Client"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -118,7 +117,8 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/llm.KnowledgeBase"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -142,7 +142,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handlers.KnowledgeBaseRequest"
+                            "$ref": "#/definitions/internal_modules_saas_handlers.KnowledgeBaseRequest"
                         }
                     }
                 ],
@@ -583,10 +583,539 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/workflows": {
+            "get": {
+                "description": "Retrieve all workflows for a specific client",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflows"
+                ],
+                "summary": "List workflows for a client",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new automation workflow for a client",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflows"
+                ],
+                "summary": "Create a new workflow",
+                "parameters": [
+                    {
+                        "description": "Workflow details",
+                        "name": "workflow",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.CreateWorkflowRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/workflows/{id}": {
+            "get": {
+                "description": "Retrieve a specific workflow by its ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflows"
+                ],
+                "summary": "Get workflow by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update an existing workflow",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflows"
+                ],
+                "summary": "Update a workflow",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated workflow details",
+                        "name": "workflow",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.UpdateWorkflowRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a workflow by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflows"
+                ],
+                "summary": "Delete a workflow",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/workflows/{id}/execute": {
+            "post": {
+                "description": "Trigger a workflow execution manually",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflows"
+                ],
+                "summary": "Manually execute a workflow",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Trigger data",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.WorkflowExecutionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/workflows/{id}/executions": {
+            "get": {
+                "description": "Retrieve execution history for a specific workflow",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflows"
+                ],
+                "summary": "Get workflow execution history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Limit number of results",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
-        "handlers.KnowledgeBaseRequest": {
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Action": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "description": "Action-specific configuration",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "type": {
+                    "description": "Action type: \"send_whatsapp\", \"update_database\", \"call_api\", etc.",
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Condition": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "description": "Field to check (e.g., \"total_amount\", \"customer_type\")",
+                    "type": "string"
+                },
+                "logic": {
+                    "description": "\"AND\" or \"OR\" (default: \"AND\")",
+                    "type": "string"
+                },
+                "operator": {
+                    "description": "Operator: \"equals\", \"greater_than\", \"less_than\", \"contains\", etc.",
+                    "type": "string"
+                },
+                "value": {
+                    "description": "Value to compare against"
+                }
+            }
+        },
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.CreateWorkflowRequest": {
+            "type": "object",
+            "required": [
+                "actions",
+                "name",
+                "trigger_config",
+                "trigger_type"
+            ],
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Action"
+                    }
+                },
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Condition"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "description": "Pointer to allow explicit false",
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "trigger_config": {
+                    "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.TriggerConfig"
+                },
+                "trigger_type": {
+                    "type": "string",
+                    "enum": [
+                        "event",
+                        "scheduled",
+                        "manual"
+                    ]
+                }
+            }
+        },
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.TriggerConfig": {
+            "type": "object",
+            "properties": {
+                "event_name": {
+                    "description": "For event triggers: \"transaction_created\", \"message_received\", etc.",
+                    "type": "string"
+                },
+                "schedule": {
+                    "description": "For scheduled triggers: cron expression \"0 18 * * *\"",
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.UpdateWorkflowRequest": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Action"
+                    }
+                },
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Condition"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "trigger_config": {
+                    "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.TriggerConfig"
+                },
+                "trigger_type": {
+                    "type": "string",
+                    "enum": [
+                        "event",
+                        "scheduled",
+                        "manual"
+                    ]
+                }
+            }
+        },
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.WorkflowExecutionRequest": {
+            "type": "object",
+            "properties": {
+                "trigger_data": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "internal_modules_saas_handlers.KnowledgeBaseRequest": {
             "type": "object",
             "properties": {
                 "client_id": {
@@ -614,110 +1143,6 @@ const docTemplate = `{
                     "description": "faq, product, service, policy, or any custom type",
                     "type": "string",
                     "example": "faq"
-                }
-            }
-        },
-        "llm.FAQ": {
-            "type": "object",
-            "properties": {
-                "answer": {
-                    "type": "string"
-                },
-                "question": {
-                    "type": "string"
-                }
-            }
-        },
-        "llm.KnowledgeBase": {
-            "type": "object",
-            "properties": {
-                "businessName": {
-                    "type": "string"
-                },
-                "faqs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/llm.FAQ"
-                    }
-                },
-                "products": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/llm.Product"
-                    }
-                },
-                "rawEntries": {
-                    "description": "New: for all other types",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/llm.RawKBEntry"
-                    }
-                },
-                "tone": {
-                    "type": "string"
-                }
-            }
-        },
-        "llm.Product": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "price": {
-                    "type": "number",
-                    "format": "float64"
-                }
-            }
-        },
-        "llm.RawKBEntry": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "title": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.Client": {
-            "type": "object",
-            "properties": {
-                "business_name": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "subscription_plan": {
-                    "type": "string"
-                },
-                "subscription_status": {
-                    "type": "string"
-                },
-                "tone": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "wa_device_id": {
-                    "type": "string"
-                },
-                "whatsapp_number": {
-                    "type": "string"
-                },
-                "whatsapp_session_id": {
-                    "description": "WhatsApp session ID for multi-session providers (WAHA, etc)",
-                    "type": "string"
                 }
             }
         }

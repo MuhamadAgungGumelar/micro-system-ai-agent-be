@@ -1,6 +1,106 @@
 basePath: /
 definitions:
-  handlers.KnowledgeBaseRequest:
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Action:
+    properties:
+      config:
+        additionalProperties: true
+        description: Action-specific configuration
+        type: object
+      type:
+        description: 'Action type: "send_whatsapp", "update_database", "call_api",
+          etc.'
+        type: string
+    type: object
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Condition:
+    properties:
+      field:
+        description: Field to check (e.g., "total_amount", "customer_type")
+        type: string
+      logic:
+        description: '"AND" or "OR" (default: "AND")'
+        type: string
+      operator:
+        description: 'Operator: "equals", "greater_than", "less_than", "contains",
+          etc.'
+        type: string
+      value:
+        description: Value to compare against
+    type: object
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.CreateWorkflowRequest:
+    properties:
+      actions:
+        items:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Action'
+        minItems: 1
+        type: array
+      conditions:
+        items:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Condition'
+        type: array
+      description:
+        type: string
+      is_active:
+        description: Pointer to allow explicit false
+        type: boolean
+      name:
+        type: string
+      trigger_config:
+        $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.TriggerConfig'
+      trigger_type:
+        enum:
+        - event
+        - scheduled
+        - manual
+        type: string
+    required:
+    - actions
+    - name
+    - trigger_config
+    - trigger_type
+    type: object
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.TriggerConfig:
+    properties:
+      event_name:
+        description: 'For event triggers: "transaction_created", "message_received",
+          etc.'
+        type: string
+      schedule:
+        description: 'For scheduled triggers: cron expression "0 18 * * *"'
+        type: string
+    type: object
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.UpdateWorkflowRequest:
+    properties:
+      actions:
+        items:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Action'
+        minItems: 1
+        type: array
+      conditions:
+        items:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Condition'
+        type: array
+      description:
+        type: string
+      is_active:
+        type: boolean
+      name:
+        type: string
+      trigger_config:
+        $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.TriggerConfig'
+      trigger_type:
+        enum:
+        - event
+        - scheduled
+        - manual
+        type: string
+    type: object
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.WorkflowExecutionRequest:
+    properties:
+      trigger_data:
+        additionalProperties: true
+        type: object
+    type: object
+  internal_modules_saas_handlers.KnowledgeBaseRequest:
     properties:
       client_id:
         example: 7a393015-15b8-4bcf-8ce6-840f753bfb1c
@@ -20,75 +120,6 @@ definitions:
       type:
         description: faq, product, service, policy, or any custom type
         example: faq
-        type: string
-    type: object
-  llm.FAQ:
-    properties:
-      answer:
-        type: string
-      question:
-        type: string
-    type: object
-  llm.KnowledgeBase:
-    properties:
-      businessName:
-        type: string
-      faqs:
-        items:
-          $ref: '#/definitions/llm.FAQ'
-        type: array
-      products:
-        items:
-          $ref: '#/definitions/llm.Product'
-        type: array
-      rawEntries:
-        description: 'New: for all other types'
-        items:
-          $ref: '#/definitions/llm.RawKBEntry'
-        type: array
-      tone:
-        type: string
-    type: object
-  llm.Product:
-    properties:
-      name:
-        type: string
-      price:
-        format: float64
-        type: number
-    type: object
-  llm.RawKBEntry:
-    properties:
-      content:
-        additionalProperties: true
-        type: object
-      title:
-        type: string
-      type:
-        type: string
-    type: object
-  models.Client:
-    properties:
-      business_name:
-        type: string
-      created_at:
-        type: string
-      id:
-        type: string
-      subscription_plan:
-        type: string
-      subscription_status:
-        type: string
-      tone:
-        type: string
-      updated_at:
-        type: string
-      wa_device_id:
-        type: string
-      whatsapp_number:
-        type: string
-      whatsapp_session_id:
-        description: WhatsApp session ID for multi-session providers (WAHA, etc)
         type: string
     type: object
 host: localhost:8080
@@ -112,9 +143,8 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/models.Client'
-            type: array
+            additionalProperties: true
+            type: object
       summary: Get all active clients
       tags:
       - Clients
@@ -133,7 +163,8 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.Client'
+            additionalProperties: true
+            type: object
       summary: Get client by ID
       tags:
       - Clients
@@ -166,7 +197,8 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/llm.KnowledgeBase'
+            additionalProperties: true
+            type: object
       summary: Get Knowledge Base by Client ID
       tags:
       - KnowledgeBase
@@ -182,7 +214,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/handlers.KnowledgeBaseRequest'
+          $ref: '#/definitions/internal_modules_saas_handlers.KnowledgeBaseRequest'
       produces:
       - application/json
       responses:
@@ -479,4 +511,265 @@ paths:
       summary: Configure webhook for WhatsApp session
       tags:
       - WhatsApp
+  /workflows:
+    get:
+      description: Retrieve all workflows for a specific client
+      parameters:
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List workflows for a client
+      tags:
+      - Workflows
+    post:
+      consumes:
+      - application/json
+      description: Create a new automation workflow for a client
+      parameters:
+      - description: Workflow details
+        in: body
+        name: workflow
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.CreateWorkflowRequest'
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a new workflow
+      tags:
+      - Workflows
+  /workflows/{id}:
+    delete:
+      description: Delete a workflow by ID
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a workflow
+      tags:
+      - Workflows
+    get:
+      description: Retrieve a specific workflow by its ID
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get workflow by ID
+      tags:
+      - Workflows
+    put:
+      consumes:
+      - application/json
+      description: Update an existing workflow
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated workflow details
+        in: body
+        name: workflow
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.UpdateWorkflowRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a workflow
+      tags:
+      - Workflows
+  /workflows/{id}/execute:
+    post:
+      consumes:
+      - application/json
+      description: Trigger a workflow execution manually
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Trigger data
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.WorkflowExecutionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Manually execute a workflow
+      tags:
+      - Workflows
+  /workflows/{id}/executions:
+    get:
+      description: Retrieve execution history for a specific workflow
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 50
+        description: Limit number of results
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get workflow execution history
+      tags:
+      - Workflows
 swagger: "2.0"

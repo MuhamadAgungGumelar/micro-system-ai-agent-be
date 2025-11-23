@@ -4,11 +4,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
-	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
+// Client represents a SaaS client/business
 type Client struct {
 	ID                 uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	WhatsAppNumber     string    `gorm:"column:whatsapp_number;type:text;not null" json:"whatsapp_number"`
@@ -22,138 +21,15 @@ type Client struct {
 	UpdatedAt          time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 }
 
-// TableName overrides the table name
+// TableName specifies the table name
 func (Client) TableName() string {
 	return "saas_clients"
 }
 
-// BeforeCreate will set a UUID rather than numeric ID.
+// BeforeCreate sets UUID before creating
 func (c *Client) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == uuid.Nil {
 		c.ID = uuid.New()
-	}
-	return nil
-}
-
-// KnowledgeBaseEntry represents a single knowledge base item with flexible JSONB content
-type KnowledgeBaseEntry struct {
-	ID        uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	ClientID  uuid.UUID      `gorm:"type:uuid;not null;index:idx_client_type" json:"client_id"`
-	Type      string         `gorm:"type:text;not null;index:idx_client_type" json:"type"` // 'faq', 'product', 'service', 'policy'
-	Title     string         `gorm:"type:text;not null" json:"title"`
-	Content   datatypes.JSON `gorm:"type:jsonb;not null" json:"content"` // Flexible JSONB content using GORM datatypes
-	Tags      pq.StringArray `gorm:"type:text[]" json:"tags"`            // PostgreSQL text array
-	IsActive  bool           `gorm:"default:true" json:"is_active"`
-	CreatedAt time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
-
-	// Relationship
-	Client Client `gorm:"foreignKey:ClientID;references:ID;constraint:OnDelete:CASCADE" json:"-"`
-}
-
-func (KnowledgeBaseEntry) TableName() string {
-	return "saas_knowledge_base"
-}
-
-func (kb *KnowledgeBaseEntry) BeforeCreate(tx *gorm.DB) error {
-	if kb.ID == uuid.Nil {
-		kb.ID = uuid.New()
-	}
-	return nil
-}
-
-// Legacy structs for backward compatibility with existing code
-type KnowledgeBase struct {
-	BusinessName string    `json:"business_name"`
-	Tone         string    `json:"tone"`
-	FAQs         []FAQ     `json:"faqs"`
-	Products     []Product `json:"products"`
-}
-
-type FAQ struct {
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
-}
-
-type Product struct {
-	Name  string  `json:"name"`
-	Price float64 `json:"price"`
-}
-
-type Conversation struct {
-	ID            uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	ClientID      uuid.UUID `gorm:"type:uuid;not null;index" json:"client_id"`
-	CustomerPhone string    `gorm:"type:text;not null" json:"customer_phone"`
-	MessageType   string    `gorm:"type:text;default:'incoming'" json:"message_type"`
-	MessageText   string    `gorm:"type:text" json:"message_text"`
-	AIResponse    string    `gorm:"type:text" json:"ai_response"`
-	CreatedAt     time.Time `gorm:"autoCreateTime" json:"created_at"`
-
-	// Relationship
-	Client Client `gorm:"foreignKey:ClientID;references:ID;constraint:OnDelete:CASCADE" json:"-"`
-}
-
-func (Conversation) TableName() string {
-	return "saas_conversations"
-}
-
-func (c *Conversation) BeforeCreate(tx *gorm.DB) error {
-	if c.ID == uuid.Nil {
-		c.ID = uuid.New()
-	}
-	return nil
-}
-
-type Credit struct {
-	ID          uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	ClientID    uuid.UUID  `gorm:"type:uuid;not null;index" json:"client_id"`
-	CreditsUsed int        `gorm:"default:0" json:"credits_used"`
-	PeriodStart *time.Time `gorm:"type:date;default:CURRENT_DATE" json:"period_start"`
-	PeriodEnd   *time.Time `gorm:"type:date" json:"period_end"`
-
-	// Relationship
-	Client Client `gorm:"foreignKey:ClientID;references:ID;constraint:OnDelete:CASCADE" json:"-"`
-}
-
-func (Credit) TableName() string {
-	return "saas_credits"
-}
-
-func (cr *Credit) BeforeCreate(tx *gorm.DB) error {
-	if cr.ID == uuid.Nil {
-		cr.ID = uuid.New()
-	}
-	return nil
-}
-
-// Transaction represents a business transaction (from receipt/invoice or manual entry)
-type Transaction struct {
-	ID              uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	ClientID        uuid.UUID      `gorm:"type:uuid;not null;index:idx_transactions_client" json:"client_id"`
-	TotalAmount     float64        `gorm:"type:decimal(15,2);not null;default:0" json:"total_amount"`
-	TransactionDate time.Time      `gorm:"not null;default:CURRENT_TIMESTAMP" json:"transaction_date"`
-	StoreName       string         `gorm:"type:varchar(255)" json:"store_name,omitempty"`
-	Items           datatypes.JSON `gorm:"type:jsonb" json:"items,omitempty"` // Array of items as JSONB
-	CreatedFrom     string         `gorm:"type:varchar(20);not null;default:'manual'" json:"created_from"` // 'ocr' or 'manual'
-	SourceType      string         `gorm:"type:varchar(20);not null;default:'manual'" json:"source_type"`  // 'receipt', 'invoice', 'manual'
-	OCRConfidence   *float64       `gorm:"type:float" json:"ocr_confidence,omitempty"`                     // OCR confidence score (0-1)
-	OCRRawText      string         `gorm:"type:text" json:"ocr_raw_text,omitempty"`                        // Original OCR extracted text
-	CreatedAt       time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt       time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
-
-	// Relationship
-	Client Client `gorm:"foreignKey:ClientID;references:ID;constraint:OnDelete:CASCADE" json:"-"`
-}
-
-// TableName overrides the table name for Transaction
-func (Transaction) TableName() string {
-	return "saas_transactions"
-}
-
-// BeforeCreate sets UUID before creating
-func (t *Transaction) BeforeCreate(tx *gorm.DB) error {
-	if t.ID == uuid.Nil {
-		t.ID = uuid.New()
 	}
 	return nil
 }
