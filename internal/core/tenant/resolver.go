@@ -32,7 +32,7 @@ func (r *Resolver) ResolveFromPhone(phoneNumber string) (*TenantContext, error) 
 
 	// Query 1: Cek apakah ini admin/staff dari company
 	query := `
-		SELECT cu.company_id, c.module, cu.role, cu.client_id
+		SELECT cu.client_id as company_id, c.module, cu.role, cu.client_id
 		FROM company_users cu
 		JOIN clients c ON c.id = cu.client_id
 		WHERE cu.phone_number = $1 AND c.subscription_status = 'active'
@@ -43,10 +43,10 @@ func (r *Resolver) ResolveFromPhone(phoneNumber string) (*TenantContext, error) 
 		return ctx, nil
 	}
 
-	// Query 2: Jika tidak ketemu, cek di table clients (backward compatibility)
-	// Ini untuk skenario lama dimana whatsapp_number ada di table clients
+	// Query 2: Jika tidak ketemu, cek di table clients (check if business owner/admin)
+	// Business owner yang whatsapp_number nya terdaftar di clients
 	queryLegacy := `
-		SELECT id, 'saas' as module, 'admin' as role, id as client_id
+		SELECT id, module, 'admin' as role, id as client_id
 		FROM clients
 		WHERE whatsapp_number = $1 AND subscription_status = 'active'
 		LIMIT 1
@@ -60,7 +60,7 @@ func (r *Resolver) ResolveFromPhone(phoneNumber string) (*TenantContext, error) 
 	// Ambil client pertama yang aktif (untuk demo/testing)
 	// CATATAN: Di production, ini harus lebih smart (misal dari context routing)
 	queryDefault := `
-		SELECT id, 'saas' as module, id as client_id
+		SELECT id, module, id as client_id
 		FROM clients
 		WHERE subscription_status = 'active'
 		LIMIT 1
@@ -81,7 +81,7 @@ func (r *Resolver) ResolveFromClientID(clientID string) (*TenantContext, error) 
 	}
 
 	query := `
-		SELECT id, COALESCE(module, 'saas') as module
+		SELECT id, module
 		FROM clients
 		WHERE id = $1
 	`

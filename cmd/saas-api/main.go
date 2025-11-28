@@ -10,6 +10,7 @@ import (
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/kb"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/llm"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/ocr"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/tenant"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/whatsapp"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/handlers"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/repositories"
@@ -46,6 +47,9 @@ func main() {
 	workflowRepo := repositories.NewWorkflowRepo(db.GORM)
 	kbRetriever := kb.NewRetriever(db.GORM)
 
+	// Init tenant resolver (for multi-tenant/multi-module routing)
+	tenantResolver := tenant.NewResolver(db.DB)
+
 	// Init LLM service (multi-provider support)
 	llmService := llm.NewService()
 
@@ -77,7 +81,7 @@ func main() {
 	}
 	defer workflowService.Shutdown()
 
-	webhookService := services.NewWebhookService(clientRepo, conversationRepo, transactionRepo, kbRetriever, llmService, waService, ocrService)
+	webhookService := services.NewWebhookService(clientRepo, conversationRepo, transactionRepo, kbRetriever, llmService, waService, ocrService, tenantResolver)
 
 	// Init handlers
 	clientHandler := handlers.NewClientHandler(clientRepo)
