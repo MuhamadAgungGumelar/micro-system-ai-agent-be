@@ -54,6 +54,7 @@ const (
 	ProviderWhatsmeow ProviderType = "whatsmeow"
 	ProviderGreenAPI  ProviderType = "greenapi"
 	ProviderWAHA      ProviderType = "waha"
+	ProviderCloudAPI  ProviderType = "cloudapi" // Official WhatsApp Business API
 )
 
 // ProviderConfig konfigurasi untuk provider
@@ -72,6 +73,12 @@ type ProviderConfig struct {
 	WAHABaseURL   string
 	WAHAAPIKey    string
 	WAHASessionID string
+
+	// Cloud API specific (Official WhatsApp Business API)
+	CloudAPIPhoneID     string
+	CloudAPIAccessToken string
+	CloudAPIVersion     string
+	CloudAPIWebhookURL  string
 }
 
 // NewProvider factory untuk create provider berdasarkan config
@@ -91,6 +98,17 @@ func NewProvider(cfg *ProviderConfig) (WhatsAppProvider, error) {
 			return nil, fmt.Errorf("WAHA_BASE_URL is required")
 		}
 		return NewWAHAProvider(cfg.WAHABaseURL, cfg.WAHAAPIKey, cfg.WAHASessionID), nil
+
+	case ProviderCloudAPI:
+		if cfg.CloudAPIPhoneID == "" || cfg.CloudAPIAccessToken == "" {
+			return nil, fmt.Errorf("CLOUDAPI_PHONE_ID and CLOUDAPI_ACCESS_TOKEN are required")
+		}
+		return NewCloudAPIProvider(CloudAPIConfig{
+			PhoneID:     cfg.CloudAPIPhoneID,
+			AccessToken: cfg.CloudAPIAccessToken,
+			APIVersion:  cfg.CloudAPIVersion,
+			WebhookURL:  cfg.CloudAPIWebhookURL,
+		})
 
 	default:
 		return nil, fmt.Errorf("unknown provider type: %s", cfg.Type)
@@ -117,6 +135,12 @@ func LoadProviderFromEnv() (*ProviderConfig, error) {
 		WAHABaseURL:   os.Getenv("WAHA_BASE_URL"),
 		WAHAAPIKey:    os.Getenv("WAHA_API_KEY"),
 		WAHASessionID: os.Getenv("WAHA_SESSION_ID"),
+
+		// Cloud API (Official WhatsApp Business API)
+		CloudAPIPhoneID:     os.Getenv("CLOUDAPI_PHONE_ID"),
+		CloudAPIAccessToken: os.Getenv("CLOUDAPI_ACCESS_TOKEN"),
+		CloudAPIVersion:     os.Getenv("CLOUDAPI_VERSION"),
+		CloudAPIWebhookURL:  os.Getenv("CLOUDAPI_WEBHOOK_URL"),
 	}
 
 	// Set defaults
@@ -125,6 +149,9 @@ func LoadProviderFromEnv() (*ProviderConfig, error) {
 	}
 	if cfg.WAHASessionID == "" {
 		cfg.WAHASessionID = "default"
+	}
+	if cfg.CloudAPIVersion == "" {
+		cfg.CloudAPIVersion = "v18.0" // Default to latest stable version
 	}
 
 	return cfg, nil

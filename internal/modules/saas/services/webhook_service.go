@@ -13,6 +13,7 @@ import (
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/kb"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/llm"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/ocr"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/tenant"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/whatsapp"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/models"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/repositories"
@@ -28,6 +29,7 @@ type WebhookService struct {
 	llmService       *llm.Service
 	whatsappService  *whatsapp.Service
 	ocrService       *ocr.Service
+	tenantResolver   *tenant.Resolver
 }
 
 // NewWebhookService creates a new webhook service
@@ -39,6 +41,7 @@ func NewWebhookService(
 	llmService *llm.Service,
 	whatsappService *whatsapp.Service,
 	ocrService *ocr.Service,
+	tenantResolver *tenant.Resolver,
 ) *WebhookService {
 	return &WebhookService{
 		clientRepo:       clientRepo,
@@ -48,6 +51,7 @@ func NewWebhookService(
 		llmService:       llmService,
 		whatsappService:  whatsappService,
 		ocrService:       ocrService,
+		tenantResolver:   tenantResolver,
 	}
 }
 
@@ -58,14 +62,24 @@ func (s *WebhookService) ProcessTextMessage(sessionID, customerPhone, message st
 
 	log.Printf("🔄 Processing message from %s (session: %s): %s", customerPhone, sessionID, message)
 
-	// 1. Find client by WhatsApp session ID
-	client, err := s.clientRepo.GetClientByWhatsAppSession(sessionID)
+	// 1. Resolve tenant context (determine role, module, client)
+	tenantCtx, err := s.tenantResolver.ResolveFromPhone(customerPhone)
 	if err != nil {
-		log.Printf("❌ No client found for session '%s': %v", sessionID, err)
+		log.Printf("❌ Failed to resolve tenant for %s: %v", customerPhone, err)
+		s.whatsappService.SendMessage(customerPhone, "Maaf, sistem sedang bermasalah. Silakan hubungi administrator.")
 		return
 	}
 
-	log.Printf("📋 Using client: %s (%s)", client.BusinessName, client.ID.String())
+	log.Printf("👤 Resolved tenant: ClientID=%s, Module=%s, Role=%s", tenantCtx.ClientID, tenantCtx.Module, tenantCtx.Role)
+
+	// 2. Get client details
+	client, err := s.clientRepo.GetByID(tenantCtx.ClientID)
+	if err != nil {
+		log.Printf("❌ No client found for ID '%s': %v", tenantCtx.ClientID, err)
+		return
+	}
+
+	log.Printf("📋 Using client: %s (%s) [Role: %s]", client.BusinessName, client.ID.String(), tenantCtx.Role)
 
 	// 2. Start typing indicator
 	if err := s.whatsappService.StartTyping(customerPhone); err != nil {
@@ -127,15 +141,24 @@ func (s *WebhookService) ProcessImageMessage(sessionID, customerPhone, mediaURL 
 
 	log.Printf("📸 Processing image from %s (session: %s): %s", customerPhone, sessionID, mediaURL)
 
-	// 1. Find client by WhatsApp session ID
-	client, err := s.clientRepo.GetClientByWhatsAppSession(sessionID)
+	// 1. Resolve tenant context
+	tenantCtx, err := s.tenantResolver.ResolveFromPhone(customerPhone)
 	if err != nil {
-		log.Printf("❌ No client found for session '%s': %v", sessionID, err)
-		s.whatsappService.SendMessage(customerPhone, "⚠️ Maaf, terjadi kesalahan sistem. Silakan coba lagi nanti.")
+		log.Printf("❌ Failed to resolve tenant for %s: %v", customerPhone, err)
+		s.whatsappService.SendMessage(customerPhone, "Maaf, sistem sedang bermasalah. Silakan hubungi administrator.")
 		return
 	}
 
-	log.Printf("📋 Using client: %s (%s)", client.BusinessName, client.ID.String())
+	log.Printf("👤 Resolved tenant: ClientID=%s, Module=%s, Role=%s", tenantCtx.ClientID, tenantCtx.Module, tenantCtx.Role)
+
+	// 2. Get client details
+	client, err := s.clientRepo.GetByID(tenantCtx.ClientID)
+	if err != nil {
+		log.Printf("❌ No client found for ID '%s': %v", tenantCtx.ClientID, err)
+		return
+	}
+
+	log.Printf("📋 Using client: %s (%s) [Role: %s]", client.BusinessName, client.ID.String(), tenantCtx.Role)
 
 	// 2. Start typing indicator
 	if err := s.whatsappService.StartTyping(customerPhone); err != nil {
