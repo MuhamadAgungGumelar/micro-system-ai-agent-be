@@ -20,6 +20,11 @@ type Config struct {
 	GoogleVisionAPIKey  string
 	OCRSpaceAPIKey      string
 	TesseractLanguage   string // Language for Tesseract: "eng", "ind", or "eng+ind"
+
+	// Payment Gateway Configuration
+	PaymentMode         string // "manual" or "automated"
+	MidtransServerKey   string
+	MidtransIsProduction bool
 }
 
 func LoadConfig() *Config {
@@ -40,6 +45,11 @@ func LoadConfig() *Config {
 		GoogleVisionAPIKey: os.Getenv("GOOGLE_VISION_API_KEY"),
 		OCRSpaceAPIKey:     os.Getenv("OCRSPACE_API_KEY"),
 		TesseractLanguage:  os.Getenv("TESSERACT_LANGUAGE"),
+
+		// Payment Gateway
+		PaymentMode:          os.Getenv("PAYMENT_MODE"),
+		MidtransServerKey:    os.Getenv("MIDTRANS_SERVER_KEY"),
+		MidtransIsProduction: os.Getenv("MIDTRANS_IS_PRODUCTION") == "true",
 	}
 
 	// Default values
@@ -61,6 +71,9 @@ func LoadConfig() *Config {
 	}
 	if cfg.TesseractLanguage == "" {
 		cfg.TesseractLanguage = "eng" // Default to English
+	}
+	if cfg.PaymentMode == "" {
+		cfg.PaymentMode = "manual" // Default to manual for MVP
 	}
 
 	return cfg

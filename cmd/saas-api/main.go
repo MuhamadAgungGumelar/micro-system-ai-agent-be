@@ -10,6 +10,7 @@ import (
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/kb"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/llm"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/ocr"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/payment"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/tenant"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/whatsapp"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/handlers"
@@ -45,6 +46,7 @@ func main() {
 	kbRepo := repositories.NewKBRepo(db.GORM)
 	transactionRepo := repositories.NewTransactionRepo(db.GORM)
 	workflowRepo := repositories.NewWorkflowRepo(db.GORM)
+	orderRepo := repositories.NewOrderRepo(db.GORM)
 	kbRetriever := kb.NewRetriever(db.GORM)
 
 	// Init tenant resolver (for multi-tenant/multi-module routing)
@@ -74,6 +76,13 @@ func main() {
 	log.Printf("🤖 Using LLM provider: %s", llmService.GetProviderName())
 	log.Printf("🔍 Using OCR provider: %s", ocrService.GetProviderName())
 
+	// Init payment gateway based on config
+	paymentGateway, err := payment.NewGateway(cfg, db.GORM)
+	if err != nil {
+		log.Fatalf("Failed to initialize payment gateway: %v", err)
+	}
+	log.Printf("💳 Payment mode: %s", cfg.PaymentMode)
+
 	// Init services
 	workflowService := services.NewWorkflowService(workflowRepo, db.GORM, waService, llmService)
 	if err := workflowService.Initialize(); err != nil {
@@ -83,6 +92,9 @@ func main() {
 
 	webhookService := services.NewWebhookService(clientRepo, conversationRepo, transactionRepo, kbRetriever, llmService, waService, ocrService, tenantResolver)
 
+	// Init order service with payment gateway
+	orderService := services.NewOrderService(orderRepo, paymentGateway, waService)
+
 	// Init handlers
 	clientHandler := handlers.NewClientHandler(clientRepo)
 	kbHandler := handlers.NewKBHandler(kbRetriever, kbRepo)
@@ -91,6 +103,7 @@ func main() {
 	webhookHandler := handlers.NewWebhookHandler(webhookService)
 	ocrHandler := handlers.NewOCRHandler(ocrService, llmService, transactionRepo, workflowService)
 	workflowHandler := handlers.NewWorkflowHandler(workflowService)
+	paymentHandler := handlers.NewPaymentHandler(orderService)
 
 	// Init Fiber app
 	app := fiber.New(fiber.Config{
@@ -137,6 +150,15 @@ func main() {
 	app.Delete("/workflows/:id", workflowHandler.DeleteWorkflow)
 	app.Post("/workflows/:id/execute", workflowHandler.ExecuteWorkflow)
 	app.Get("/workflows/:id/executions", workflowHandler.GetWorkflowExecutions)
+
+	// Order/Payment routes
+	app.Post("/orders", paymentHandler.CreateOrder)
+	app.Get("/orders/:orderNumber/status", paymentHandler.GetOrderStatus)
+	app.Post("/orders/:id/confirm-payment", paymentHandler.ManualPaymentConfirm)
+	app.Post("/orders/:id/cancel", paymentHandler.CancelOrder)
+
+	// Payment webhook routes
+	app.Post("/webhooks/midtrans", paymentHandler.MidtransWebhook)
 
 	// Start server
 	port := cfg.Port
