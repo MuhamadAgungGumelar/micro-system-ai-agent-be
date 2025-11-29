@@ -226,6 +226,154 @@ const docTemplate = `{
                 }
             }
         },
+        "/orders": {
+            "post": {
+                "description": "Create a new order for a customer (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Create a new order",
+                "parameters": [
+                    {
+                        "description": "Order details",
+                        "name": "order",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.CreateOrderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{id}/cancel": {
+            "post": {
+                "description": "Cancel a pending order",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Cancel an order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{id}/confirm-payment": {
+            "post": {
+                "description": "Admin manually confirms payment for an order",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Manually confirm payment (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Payment confirmation details",
+                        "name": "payment",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "notes": {
+                                    "type": "string"
+                                },
+                                "payment_method": {
+                                    "type": "string"
+                                },
+                                "reference": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{orderNumber}/status": {
+            "get": {
+                "description": "Retrieve order and payment status by order number",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Get order status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order Number",
+                        "name": "orderNumber",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/transactions": {
             "get": {
                 "description": "Retrieve transaction history for a specific client",
@@ -316,6 +464,42 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/webhooks/midtrans": {
+            "post": {
+                "description": "Handle Midtrans payment notifications",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Webhooks"
+                ],
+                "summary": "Midtrans payment webhook",
+                "parameters": [
+                    {
+                        "description": "Midtrans notification",
+                        "name": "notification",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -976,6 +1160,32 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_payment.OrderItem": {
+            "type": "object",
+            "properties": {
+                "product_id": {
+                    "type": "string"
+                },
+                "product_name": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer"
+                },
+                "subtotal": {
+                    "type": "number"
+                },
+                "unit_price": {
+                    "type": "number"
+                },
+                "variant_id": {
+                    "type": "string"
+                },
+                "variant_name": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Action": {
             "type": "object",
             "properties": {
@@ -1112,6 +1322,30 @@ const docTemplate = `{
                 "trigger_data": {
                     "type": "object",
                     "additionalProperties": true
+                }
+            }
+        },
+        "github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.CreateOrderRequest": {
+            "type": "object",
+            "properties": {
+                "clientID": {
+                    "type": "string"
+                },
+                "customerName": {
+                    "type": "string"
+                },
+                "customerPhone": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_payment.OrderItem"
+                    }
+                },
+                "totalAmount": {
+                    "type": "number",
+                    "format": "float64"
                 }
             }
         },

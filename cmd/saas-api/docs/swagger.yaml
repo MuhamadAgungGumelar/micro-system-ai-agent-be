@@ -1,5 +1,22 @@
 basePath: /
 definitions:
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_payment.OrderItem:
+    properties:
+      product_id:
+        type: string
+      product_name:
+        type: string
+      quantity:
+        type: integer
+      subtotal:
+        type: number
+      unit_price:
+        type: number
+      variant_id:
+        type: string
+      variant_name:
+        type: string
+    type: object
   github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_workflow.Action:
     properties:
       config:
@@ -99,6 +116,22 @@ definitions:
       trigger_data:
         additionalProperties: true
         type: object
+    type: object
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.CreateOrderRequest:
+    properties:
+      clientID:
+        type: string
+      customerName:
+        type: string
+      customerPhone:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_core_payment.OrderItem'
+        type: array
+      totalAmount:
+        format: float64
+        type: number
     type: object
   internal_modules_saas_handlers.KnowledgeBaseRequest:
     properties:
@@ -273,6 +306,104 @@ paths:
       summary: Process receipt image and create transaction
       tags:
       - OCR
+  /orders:
+    post:
+      consumes:
+      - application/json
+      description: Create a new order for a customer (admin only)
+      parameters:
+      - description: Order details
+        in: body
+        name: order
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create a new order
+      tags:
+      - Orders
+  /orders/{id}/cancel:
+    post:
+      description: Cancel a pending order
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Cancel an order
+      tags:
+      - Orders
+  /orders/{id}/confirm-payment:
+    post:
+      consumes:
+      - application/json
+      description: Admin manually confirms payment for an order
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Payment confirmation details
+        in: body
+        name: payment
+        required: true
+        schema:
+          properties:
+            notes:
+              type: string
+            payment_method:
+              type: string
+            reference:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Manually confirm payment (Admin)
+      tags:
+      - Orders
+  /orders/{orderNumber}/status:
+    get:
+      description: Retrieve order and payment status by order number
+      parameters:
+      - description: Order Number
+        in: path
+        name: orderNumber
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get order status
+      tags:
+      - Orders
   /transactions:
     get:
       description: Retrieve transaction history for a specific client
@@ -339,6 +470,30 @@ paths:
       summary: WhatsApp webhook receiver
       tags:
       - Webhook
+  /webhooks/midtrans:
+    post:
+      consumes:
+      - application/json
+      description: Handle Midtrans payment notifications
+      parameters:
+      - description: Midtrans notification
+        in: body
+        name: notification
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Midtrans payment webhook
+      tags:
+      - Webhooks
   /whatsapp/qr:
     get:
       description: Generate QR code for WhatsApp authentication
