@@ -117,6 +117,38 @@ definitions:
         additionalProperties: true
         type: object
     type: object
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_models.OrderItem:
+    properties:
+      notes:
+        type: string
+      price:
+        type: number
+      product_id:
+        type: string
+      product_name:
+        type: string
+      quantity:
+        type: integer
+      subtotal:
+        type: number
+    type: object
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.AddToCartRequest:
+    properties:
+      client_id:
+        type: string
+      customer_phone:
+        type: string
+      notes:
+        type: string
+      price:
+        type: number
+      product_id:
+        type: string
+      product_name:
+        type: string
+      quantity:
+        type: integer
+    type: object
   github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.CreateOrderRequest:
     properties:
       clientID:
@@ -131,6 +163,29 @@ definitions:
         type: array
       totalAmount:
         format: float64
+        type: number
+    type: object
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.RemoveFromCartRequest:
+    properties:
+      product_id:
+        type: string
+    type: object
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.UpdateCartItemRequest:
+    properties:
+      product_id:
+        type: string
+      quantity:
+        type: integer
+    type: object
+  github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.UpdateOrderRequest:
+    properties:
+      admin_notes:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_models.OrderItem'
+        type: array
+      total_amount:
         type: number
     type: object
   internal_modules_saas_handlers.KnowledgeBaseRequest:
@@ -167,6 +222,170 @@ info:
   title: WhatsApp Bot SaaS API
   version: "2.0"
 paths:
+  /cart:
+    get:
+      description: Get the current active shopping cart
+      parameters:
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: Customer Phone
+        in: query
+        name: customer_phone
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: View shopping cart
+      tags:
+      - Cart
+  /cart/add:
+    post:
+      consumes:
+      - application/json
+      description: Add a product to the shopping cart
+      parameters:
+      - description: Item to add
+        in: body
+        name: item
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.AddToCartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Add item to cart
+      tags:
+      - Cart
+  /cart/checkout:
+    post:
+      description: Convert cart to order and initiate payment
+      parameters:
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: Customer Phone
+        in: query
+        name: customer_phone
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Checkout cart
+      tags:
+      - Cart
+  /cart/clear:
+    delete:
+      description: Remove all items from the cart
+      parameters:
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: Customer Phone
+        in: query
+        name: customer_phone
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Clear shopping cart
+      tags:
+      - Cart
+  /cart/remove:
+    delete:
+      consumes:
+      - application/json
+      description: Remove a product from the shopping cart
+      parameters:
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: Customer Phone
+        in: query
+        name: customer_phone
+        required: true
+        type: string
+      - description: Product to remove
+        in: body
+        name: item
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.RemoveFromCartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Remove item from cart
+      tags:
+      - Cart
+  /cart/update:
+    put:
+      consumes:
+      - application/json
+      description: Update the quantity of an item in the cart
+      parameters:
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: Customer Phone
+        in: query
+        name: customer_phone
+        required: true
+        type: string
+      - description: Update details
+        in: body
+        name: item
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.UpdateCartItemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update cart item quantity
+      tags:
+      - Cart
   /clients:
     get:
       description: Returns all clients with active subscription
@@ -307,6 +526,30 @@ paths:
       tags:
       - OCR
   /orders:
+    get:
+      description: Get list of orders for a client
+      parameters:
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - default: 50
+        description: Limit results
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List orders
+      tags:
+      - Orders
     post:
       consumes:
       - application/json
@@ -327,6 +570,53 @@ paths:
             additionalProperties: true
             type: object
       summary: Create a new order
+      tags:
+      - Orders
+  /orders/{id}:
+    get:
+      description: Retrieve a specific order by its ID
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get order by ID
+      tags:
+      - Orders
+    put:
+      consumes:
+      - application/json
+      description: Update order details like items, total amount, or admin notes
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update details
+        in: body
+        name: order
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MuhamadAgungGumelar_micro-system-ai-agent-be_internal_modules_saas_services.UpdateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update an order (Admin)
       tags:
       - Orders
   /orders/{id}/cancel:
@@ -384,7 +674,37 @@ paths:
       summary: Manually confirm payment (Admin)
       tags:
       - Orders
-  /orders/{orderNumber}/status:
+  /orders/customer:
+    get:
+      description: Get list of orders for a specific customer
+      parameters:
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: Customer Phone
+        in: query
+        name: customer_phone
+        required: true
+        type: string
+      - default: 50
+        description: Limit results
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List customer orders
+      tags:
+      - Orders
+  /orders/status/{orderNumber}:
     get:
       description: Retrieve order and payment status by order number
       parameters:

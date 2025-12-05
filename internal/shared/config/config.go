@@ -25,6 +25,17 @@ type Config struct {
 	PaymentMode         string // "manual" or "automated"
 	MidtransServerKey   string
 	MidtransIsProduction bool
+
+	// Email Configuration
+	EmailProvider string // "brevo" or "resend"
+	BrevoAPIKey   string
+	ResendAPIKey  string
+	EmailFrom     string
+	EmailFromName string
+
+	// Notification Configuration
+	AdminPhone string
+	AdminEmail string
 }
 
 func LoadConfig() *Config {
@@ -50,6 +61,17 @@ func LoadConfig() *Config {
 		PaymentMode:          os.Getenv("PAYMENT_MODE"),
 		MidtransServerKey:    os.Getenv("MIDTRANS_SERVER_KEY"),
 		MidtransIsProduction: os.Getenv("MIDTRANS_IS_PRODUCTION") == "true",
+
+		// Email
+		EmailProvider: os.Getenv("EMAIL_PROVIDER"),
+		BrevoAPIKey:   os.Getenv("BREVO_API_KEY"),
+		ResendAPIKey:  os.Getenv("RESEND_API_KEY"),
+		EmailFrom:     os.Getenv("EMAIL_FROM"),
+		EmailFromName: os.Getenv("EMAIL_FROM_NAME"),
+
+		// Notification
+		AdminPhone: os.Getenv("ADMIN_PHONE"),
+		AdminEmail: os.Getenv("ADMIN_EMAIL"),
 	}
 
 	// Default values
@@ -74,6 +96,12 @@ func LoadConfig() *Config {
 	}
 	if cfg.PaymentMode == "" {
 		cfg.PaymentMode = "manual" // Default to manual for MVP
+	}
+	if cfg.EmailProvider == "" {
+		cfg.EmailProvider = "brevo" // Default to Brevo
+	}
+	if cfg.EmailFromName == "" {
+		cfg.EmailFromName = "WhatsApp Bot SaaS"
 	}
 
 	return cfg
