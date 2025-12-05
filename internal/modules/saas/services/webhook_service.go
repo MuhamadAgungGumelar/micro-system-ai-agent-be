@@ -13,10 +13,12 @@ import (
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/kb"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/llm"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/ocr"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/payment"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/tenant"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/whatsapp"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/models"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/repositories"
+	"github.com/google/uuid"
 	"gorm.io/datatypes"
 )
 
@@ -30,6 +32,8 @@ type WebhookService struct {
 	whatsappService  *whatsapp.Service
 	ocrService       *ocr.Service
 	tenantResolver   *tenant.Resolver
+	cartService      *CartService
+	orderService     *OrderService
 }
 
 // NewWebhookService creates a new webhook service
@@ -42,6 +46,8 @@ func NewWebhookService(
 	whatsappService *whatsapp.Service,
 	ocrService *ocr.Service,
 	tenantResolver *tenant.Resolver,
+	cartService *CartService,
+	orderService *OrderService,
 ) *WebhookService {
 	return &WebhookService{
 		clientRepo:       clientRepo,
@@ -52,6 +58,8 @@ func NewWebhookService(
 		whatsappService:  whatsappService,
 		ocrService:       ocrService,
 		tenantResolver:   tenantResolver,
+		cartService:      cartService,
+		orderService:     orderService,
 	}
 }
 
@@ -80,6 +88,13 @@ func (s *WebhookService) ProcessTextMessage(sessionID, customerPhone, message st
 	}
 
 	log.Printf("📋 Using client: %s (%s) [Role: %s]", client.BusinessName, client.ID.String(), tenantCtx.Role)
+
+	// Check if message is admin command (for admin_tenant or super_admin)
+	if tenantCtx.Role == "admin_tenant" || tenantCtx.Role == "super_admin" {
+		if handled := s.handleAdminCommand(ctx, client.ID.String(), customerPhone, message); handled {
+			return // Command handled, don't process as regular message
+		}
+	}
 
 	// 2. Start typing indicator
 	if err := s.whatsappService.StartTyping(customerPhone); err != nil {
@@ -118,16 +133,24 @@ func (s *WebhookService) ProcessTextMessage(sessionID, customerPhone, message st
 
 	log.Printf("🤖 AI Response: %s", aiResponse)
 
-	// 6. Send response back via WhatsApp
-	if err := s.whatsappService.SendMessage(customerPhone, aiResponse); err != nil {
+	// 6. Parse cart commands from AI response
+	cleanResponse, commands := s.parseCartCommands(aiResponse)
+
+	// 7. Send clean response back via WhatsApp (without commands)
+	if err := s.whatsappService.SendMessage(customerPhone, cleanResponse); err != nil {
 		log.Printf("❌ Failed to send WhatsApp message: %v", err)
 		return
 	}
 
 	log.Printf("✅ Message sent to %s", customerPhone)
 
-	// 7. Log conversation to database
-	if err := s.conversationRepo.LogConversation(client.ID.String(), customerPhone, message, aiResponse); err != nil {
+	// 8. Execute cart commands if any
+	if len(commands) > 0 {
+		s.executeCartCommands(ctx, client.ID.String(), customerPhone, commands, knowledgeBase.Products)
+	}
+
+	// 9. Log conversation to database
+	if err := s.conversationRepo.LogConversation(client.ID.String(), customerPhone, message, cleanResponse); err != nil {
 		log.Printf("⚠️ Failed to log conversation: %v", err)
 	}
 
@@ -328,4 +351,215 @@ func formatCurrency(amount float64) string {
 	}
 
 	return result.String()
+}
+
+// CartCommand represents a cart operation command
+type CartCommand struct {
+	Action      string // ADD_TO_CART, VIEW_CART, CHECKOUT
+	ProductName string
+	Quantity    int
+}
+
+// parseCartCommands extracts cart commands from AI response
+func (s *WebhookService) parseCartCommands(aiResponse string) (string, []CartCommand) {
+	lines := strings.Split(aiResponse, "\n")
+	var cleanLines []string
+	var commands []CartCommand
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Check for ADD_TO_CART command
+		if strings.HasPrefix(trimmed, "[ADD_TO_CART:") && strings.HasSuffix(trimmed, "]") {
+			// Extract: [ADD_TO_CART:product_name|quantity]
+			content := strings.TrimPrefix(trimmed, "[ADD_TO_CART:")
+			content = strings.TrimSuffix(content, "]")
+			parts := strings.Split(content, "|")
+
+			if len(parts) == 2 {
+				productName := strings.TrimSpace(parts[0])
+				quantity := 1
+				fmt.Sscanf(parts[1], "%d", &quantity)
+
+				commands = append(commands, CartCommand{
+					Action:      "ADD_TO_CART",
+					ProductName: productName,
+					Quantity:    quantity,
+				})
+				log.Printf("🛒 Parsed ADD_TO_CART command: %s x%d", productName, quantity)
+			}
+		} else if trimmed == "[VIEW_CART]" {
+			commands = append(commands, CartCommand{Action: "VIEW_CART"})
+			log.Printf("🛒 Parsed VIEW_CART command")
+		} else if trimmed == "[CHECKOUT]" {
+			commands = append(commands, CartCommand{Action: "CHECKOUT"})
+			log.Printf("🛒 Parsed CHECKOUT command")
+		} else {
+			// Not a command, keep in clean response
+			cleanLines = append(cleanLines, line)
+		}
+	}
+
+	cleanResponse := strings.Join(cleanLines, "\n")
+	cleanResponse = strings.TrimSpace(cleanResponse)
+
+	return cleanResponse, commands
+}
+
+// executeCartCommands processes cart commands
+func (s *WebhookService) executeCartCommands(ctx context.Context, clientID, customerPhone string, commands []CartCommand, products []llm.Product) {
+	for _, cmd := range commands {
+		switch cmd.Action {
+		case "ADD_TO_CART":
+			s.handleAddToCart(clientID, customerPhone, cmd.ProductName, cmd.Quantity, products)
+
+		case "VIEW_CART":
+			s.handleViewCart(clientID, customerPhone)
+
+		case "CHECKOUT":
+			s.handleCheckout(clientID, customerPhone)
+		}
+	}
+}
+
+// handleAddToCart adds item to cart
+func (s *WebhookService) handleAddToCart(clientID, customerPhone, productName string, quantity int, products []llm.Product) {
+	// Find product price from knowledge base
+	var productPrice float64
+	for _, p := range products {
+		if strings.EqualFold(p.Name, productName) {
+			productPrice = p.Price
+			break
+		}
+	}
+
+	if productPrice == 0 {
+		log.Printf("⚠️  Product not found in knowledge base: %s", productName)
+		s.whatsappService.SendMessage(customerPhone, fmt.Sprintf("Maaf, produk '%s' tidak ditemukan dalam katalog.", productName))
+		return
+	}
+
+	// Add to cart
+	req := &AddToCartRequest{
+		ClientID:      clientID,
+		CustomerPhone: customerPhone,
+		ProductID:     strings.ToLower(strings.ReplaceAll(productName, " ", "_")),
+		ProductName:   productName,
+		Quantity:      quantity,
+		Price:         productPrice,
+	}
+
+	cart, err := s.cartService.AddToCart(req)
+	if err != nil {
+		log.Printf("❌ Failed to add to cart: %v", err)
+		s.whatsappService.SendMessage(customerPhone, "Maaf, terjadi kesalahan saat menambahkan ke keranjang.")
+		return
+	}
+
+	log.Printf("✅ Added %s x%d to cart for %s", productName, quantity, customerPhone)
+
+	// Send confirmation
+	message := fmt.Sprintf(
+		"✅ *Berhasil ditambahkan!*\n\n"+
+			"🛒 Total item di keranjang: %d\n"+
+			"💰 Total belanja: Rp %s\n\n"+
+			"Ketik 'checkout' untuk lanjut pembayaran atau 'lihat keranjang' untuk cek pesanan.",
+		len(cart.Items),
+		formatCurrency(cart.TotalAmount),
+	)
+	s.whatsappService.SendMessage(customerPhone, message)
+}
+
+// handleViewCart shows cart contents
+func (s *WebhookService) handleViewCart(clientID, customerPhone string) {
+	cart, err := s.cartService.ViewCart(clientID, customerPhone)
+	if err != nil {
+		log.Printf("⚠️  No cart found: %v", err)
+		s.whatsappService.SendMessage(customerPhone, "Keranjang Anda masih kosong. Yuk pesan sesuatu! 😊")
+		return
+	}
+
+	if cart.IsEmpty() {
+		s.whatsappService.SendMessage(customerPhone, "Keranjang Anda masih kosong. Yuk pesan sesuatu! 😊")
+		return
+	}
+
+	// Build cart summary
+	var msg strings.Builder
+	msg.WriteString("🛒 *Keranjang Belanja Anda:*\n\n")
+
+	for i, item := range cart.Items {
+		msg.WriteString(fmt.Sprintf("%d. %s\n", i+1, item.ProductName))
+		msg.WriteString(fmt.Sprintf("   %dx @ Rp %s = Rp %s\n\n",
+			item.Quantity,
+			formatCurrency(item.Price),
+			formatCurrency(item.Subtotal),
+		))
+	}
+
+	msg.WriteString(fmt.Sprintf("💰 *Total: Rp %s*\n\n", formatCurrency(cart.TotalAmount)))
+	msg.WriteString("Ketik 'checkout' untuk lanjut pembayaran.")
+
+	s.whatsappService.SendMessage(customerPhone, msg.String())
+}
+
+// handleCheckout processes checkout
+func (s *WebhookService) handleCheckout(clientID, customerPhone string) {
+	// Get cart
+	cart, err := s.cartService.ViewCart(clientID, customerPhone)
+	if err != nil {
+		log.Printf("⚠️  No cart found: %v", err)
+		s.whatsappService.SendMessage(customerPhone, "Keranjang Anda masih kosong. Silakan pesan terlebih dahulu.")
+		return
+	}
+
+	if cart.IsEmpty() {
+		s.whatsappService.SendMessage(customerPhone, "Keranjang Anda masih kosong. Silakan pesan terlebih dahulu.")
+		return
+	}
+
+	// Convert cart items to payment.OrderItem format
+	orderItems := make([]payment.OrderItem, len(cart.Items))
+	for i, item := range cart.Items {
+		// Generate UUID from product ID string
+		productUUID := uuid.MustParse("00000000-0000-0000-0000-000000000000") // Placeholder
+		variantUUID := uuid.MustParse("00000000-0000-0000-0000-000000000000") // Placeholder
+
+		orderItems[i] = payment.OrderItem{
+			ProductID:   productUUID,
+			VariantID:   variantUUID,
+			ProductName: item.ProductName,
+			VariantName: "",
+			Quantity:    item.Quantity,
+			UnitPrice:   item.Price,
+			Subtotal:    item.Subtotal,
+		}
+	}
+
+	// Create order via OrderService
+	orderReq := &CreateOrderRequest{
+		ClientID:      clientID,
+		CustomerPhone: customerPhone,
+		CustomerName:  customerPhone, // Use phone as name for now
+		Items:         orderItems,
+		TotalAmount:   cart.TotalAmount,
+	}
+
+	order, paymentResult, err := s.orderService.CreateOrder(orderReq)
+	if err != nil {
+		log.Printf("❌ Failed to create order: %v", err)
+		s.whatsappService.SendMessage(customerPhone, "Maaf, terjadi kesalahan saat memproses pesanan. Silakan coba lagi.")
+		return
+	}
+
+	log.Printf("✅ Order created from cart: %s", order.OrderNumber)
+
+	// Clear cart after successful checkout
+	s.cartService.ClearCart(clientID, customerPhone)
+
+	// Send success notification (payment instructions already sent by OrderService)
+	log.Printf("🎉 Checkout completed for %s - Order %s", customerPhone, order.OrderNumber)
+
+	// Note: Notifications to tenant admin and super admin are automatically sent by OrderService.CreateOrder
+	_ = paymentResult // Payment result already handled in OrderService
 }

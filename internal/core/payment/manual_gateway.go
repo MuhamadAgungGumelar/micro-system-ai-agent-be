@@ -1,7 +1,6 @@
 package payment
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -23,62 +22,38 @@ func NewManualPaymentGateway(db *gorm.DB) *ManualPaymentGateway {
 	}
 }
 
-// Process creates a handoff request for admin to handle payment
+// Process creates a manual payment request (simplified - no handoff table)
 func (g *ManualPaymentGateway) Process(order *Order) (*ProcessResult, error) {
-	// Create handoff request for admin
-	handoffID := uuid.New()
+	log.Printf("✅ Manual payment mode for order %s - admin will be notified", order.OrderNumber)
 
-	// Store order items as JSON
-	itemsJSON, _ := json.Marshal(order.Items)
-
-	handoff := map[string]interface{}{
-		"id":                  handoffID,
-		"client_id":           order.ClientID,
-		"customer_phone":      order.CustomerPhone,
-		"customer_name":       order.CustomerName,
-		"reason":              "payment_pending",
-		"conversation_summary": g.buildOrderSummary(order),
-		"detected_intent":     string(itemsJSON),
-		"status":              "pending",
-		"metadata": fmt.Sprintf(`{
-			"order_id": "%s",
-			"order_number": "%s",
-			"total_amount": %f,
-			"payment_mode": "manual"
-		}`, order.ID, order.OrderNumber, order.TotalAmount),
-		"created_at": time.Now(),
-	}
-
-	err := g.db.Table("saas_handoff_requests").Create(handoff).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to create handoff request: %w", err)
-	}
-
-	log.Printf("✅ Manual payment handoff created: %s for order %s", handoffID, order.OrderNumber)
-
-	// Build payment instructions
+	// Build payment instructions for customer
 	instructions := g.buildPaymentInstructions(order)
+
+	// Note: Order is already saved in saas_orders table
+	// No need for separate handoff table
+	// Admin will be notified via WhatsApp (handled by OrderService)
 
 	return &ProcessResult{
 		Success:      true,
-		HandoffID:    &handoffID,
 		Message:      "Pesanan Anda telah dibuat. Admin kami akan menghubungi Anda untuk pembayaran.",
 		Instructions: instructions,
 	}, nil
 }
 
-// GetStatus retrieves payment status from handoff request
+// GetStatus retrieves payment status from order table directly
 func (g *ManualPaymentGateway) GetStatus(orderID string) (*PaymentStatus, error) {
-	var handoff struct {
-		ID        uuid.UUID
-		Status    string
-		CreatedAt time.Time
-		Metadata  string
+	// Query order from saas_orders table
+	var order struct {
+		ID            uuid.UUID
+		OrderNumber   string
+		PaymentStatus string
+		PaymentMethod string
+		PaidAt        *time.Time
 	}
 
-	err := g.db.Table("saas_handoff_requests").
-		Where("metadata->>'order_id' = ?", orderID).
-		First(&handoff).Error
+	err := g.db.Table("saas_orders").
+		Where("id = ? OR order_number = ?", orderID, orderID).
+		First(&order).Error
 
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -90,38 +65,22 @@ func (g *ManualPaymentGateway) GetStatus(orderID string) (*PaymentStatus, error)
 		return nil, err
 	}
 
-	// Map handoff status to payment status
-	var paymentStatus string
-	var paidAt *time.Time
-
-	switch handoff.Status {
-	case "pending", "assigned":
-		paymentStatus = StatusPending
-	case "completed":
-		paymentStatus = StatusPaid
-		now := time.Now()
-		paidAt = &now
-	case "cancelled":
-		paymentStatus = StatusCancelled
-	default:
-		paymentStatus = StatusPending
-	}
-
 	return &PaymentStatus{
-		OrderID:   orderID,
-		Status:    paymentStatus,
-		PaidAt:    paidAt,
-		Reference: handoff.ID.String(),
-		Method:    MethodManual,
+		OrderID:   order.OrderNumber,
+		Status:    order.PaymentStatus,
+		PaidAt:    order.PaidAt,
+		Reference: order.ID.String(),
+		Method:    order.PaymentMethod,
 	}, nil
 }
 
 // Cancel cancels a pending manual payment
 func (g *ManualPaymentGateway) Cancel(orderID string) error {
-	result := g.db.Table("saas_handoff_requests").
-		Where("metadata->>'order_id' = ?", orderID).
-		Where("status IN ('pending', 'assigned')").
-		Update("status", "cancelled")
+	// Update order status in saas_orders table
+	result := g.db.Table("saas_orders").
+		Where("id = ? OR order_number = ?", orderID, orderID).
+		Where("payment_status = ?", StatusPending).
+		Update("payment_status", StatusCancelled)
 
 	if result.Error != nil {
 		return result.Error

@@ -129,7 +129,9 @@ func (h *PaymentHandler) MidtransWebhook(c *fiber.Ctx) error {
 	case "deny", "cancel", "expire":
 		log.Printf("❌ Payment %s for order %s", transactionStatus, orderID)
 
-		err := h.orderService.CancelOrder(orderID)
+		// Cancel with automatic reason based on payment status
+		reason := fmt.Sprintf("Pembayaran %s", transactionStatus)
+		err := h.orderService.CancelOrder(orderID, reason)
 		if err != nil {
 			log.Printf("❌ Failed to cancel order %s: %v", orderID, err)
 		}
@@ -190,7 +192,7 @@ func (h *PaymentHandler) ManualPaymentConfirm(c *fiber.Ctx) error {
 // @Produce json
 // @Param orderNumber path string true "Order Number"
 // @Success 200 {object} map[string]interface{}
-// @Router /orders/{orderNumber}/status [get]
+// @Router /orders/status/{orderNumber} [get]
 func (h *PaymentHandler) GetOrderStatus(c *fiber.Ctx) error {
 	orderNumber := c.Params("orderNumber")
 
@@ -216,12 +218,135 @@ func (h *PaymentHandler) GetOrderStatus(c *fiber.Ctx) error {
 func (h *PaymentHandler) CancelOrder(c *fiber.Ctx) error {
 	orderID := c.Params("id")
 
-	err := h.orderService.CancelOrder(orderID)
+	// Parse request body for cancellation reason
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	c.BodyParser(&req) // Optional, will use default if not provided
+
+	err := h.orderService.CancelOrder(orderID, req.Reason)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{
 		"message": "Order cancelled successfully",
+		"reason":  req.Reason,
+	})
+}
+
+// UpdateOrder godoc
+// @Summary Update an order (Admin)
+// @Description Update order details like items, total amount, or admin notes
+// @Tags Orders
+// @Accept json
+// @Produce json
+// @Param id path string true "Order ID"
+// @Param order body services.UpdateOrderRequest true "Update details"
+// @Success 200 {object} map[string]interface{}
+// @Router /orders/{id} [put]
+func (h *PaymentHandler) UpdateOrder(c *fiber.Ctx) error {
+	orderID := c.Params("id")
+
+	var req services.UpdateOrderRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
+	}
+
+	order, err := h.orderService.UpdateOrder(orderID, &req)
+	if err != nil {
+		log.Printf("❌ Failed to update order: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Order updated successfully",
+		"order":   order,
+	})
+}
+
+// ListOrders godoc
+// @Summary List orders
+// @Description Get list of orders for a client
+// @Tags Orders
+// @Produce json
+// @Param client_id query string true "Client ID"
+// @Param limit query int false "Limit results" default(50)
+// @Success 200 {object} map[string]interface{}
+// @Router /orders [get]
+func (h *PaymentHandler) ListOrders(c *fiber.Ctx) error {
+	clientID := c.Query("client_id")
+	if clientID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "client_id is required"})
+	}
+
+	limit := c.QueryInt("limit", 50)
+	if limit > 100 {
+		limit = 100
+	}
+
+	orders, err := h.orderService.ListOrders(clientID, limit)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"orders": orders,
+		"count":  len(orders),
+	})
+}
+
+// GetOrderByID godoc
+// @Summary Get order by ID
+// @Description Retrieve a specific order by its ID
+// @Tags Orders
+// @Produce json
+// @Param id path string true "Order ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /orders/{id} [get]
+func (h *PaymentHandler) GetOrderByID(c *fiber.Ctx) error {
+	orderID := c.Params("id")
+
+	order, err := h.orderService.GetOrderByID(orderID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "order not found"})
+	}
+
+	return c.JSON(fiber.Map{
+		"order": order,
+	})
+}
+
+// ListCustomerOrders godoc
+// @Summary List customer orders
+// @Description Get list of orders for a specific customer
+// @Tags Orders
+// @Produce json
+// @Param client_id query string true "Client ID"
+// @Param customer_phone query string true "Customer Phone"
+// @Param limit query int false "Limit results" default(50)
+// @Success 200 {object} map[string]interface{}
+// @Router /orders/customer [get]
+func (h *PaymentHandler) ListCustomerOrders(c *fiber.Ctx) error {
+	clientID := c.Query("client_id")
+	customerPhone := c.Query("customer_phone")
+
+	if clientID == "" || customerPhone == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "client_id and customer_phone are required"})
+	}
+
+	limit := c.QueryInt("limit", 50)
+	if limit > 100 {
+		limit = 100
+	}
+
+	orders, err := h.orderService.ListCustomerOrders(clientID, customerPhone, limit)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"orders": orders,
+		"count":  len(orders),
 	})
 }

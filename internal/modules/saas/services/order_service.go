@@ -6,27 +6,35 @@ import (
 	"log"
 	"time"
 
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/notification"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/payment"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/models"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/repositories"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 )
 
 type OrderService struct {
-	orderRepo      repositories.OrderRepo
-	paymentGateway payment.Gateway
-	whatsappSvc    WhatsAppService
+	orderRepo       repositories.OrderRepo
+	clientRepo      repositories.ClientRepo
+	paymentGateway  payment.Gateway
+	whatsappSvc     WhatsAppService
+	notificationSvc NotificationService
 }
 
 func NewOrderService(
 	orderRepo repositories.OrderRepo,
+	clientRepo repositories.ClientRepo,
 	paymentGateway payment.Gateway,
 	whatsappSvc WhatsAppService,
+	notificationSvc NotificationService,
 ) *OrderService {
 	return &OrderService{
-		orderRepo:      orderRepo,
-		paymentGateway: paymentGateway,
-		whatsappSvc:    whatsappSvc,
+		orderRepo:       orderRepo,
+		clientRepo:      clientRepo,
+		paymentGateway:  paymentGateway,
+		whatsappSvc:     whatsappSvc,
+		notificationSvc: notificationSvc,
 	}
 }
 
@@ -44,8 +52,19 @@ func (s *OrderService) CreateOrder(req *CreateOrderRequest) (*models.Order, *pay
 	// Generate order number
 	orderNumber := s.generateOrderNumber()
 
-	// Convert items to JSON
-	itemsJSON, err := json.Marshal(req.Items)
+	// Convert payment.OrderItem to models.OrderItem and marshal to JSON
+	orderItems := make([]models.OrderItem, len(req.Items))
+	for i, item := range req.Items {
+		orderItems[i] = models.OrderItem{
+			ProductID:   item.ProductID.String(),
+			ProductName: item.ProductName,
+			Quantity:    item.Quantity,
+			Price:       item.UnitPrice,
+			Subtotal:    item.Subtotal,
+		}
+	}
+
+	itemsJSON, err := json.Marshal(orderItems)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal items: %w", err)
 	}
@@ -56,17 +75,15 @@ func (s *OrderService) CreateOrder(req *CreateOrderRequest) (*models.Order, *pay
 		OrderNumber:       orderNumber,
 		CustomerPhone:     req.CustomerPhone,
 		CustomerName:      req.CustomerName,
-		Items:             string(itemsJSON),
+		Items:             datatypes.JSON(itemsJSON),
 		TotalAmount:       req.TotalAmount,
-		Currency:          "IDR",
 		PaymentStatus:     models.PaymentStatusPending,
 		PaymentGateway:    s.paymentGateway.Name(),
 		FulfillmentStatus: models.FulfillmentStatusPending,
 	}
 
 	// Save to database
-	err = s.orderRepo.Create(order)
-	if err != nil {
+	if err = s.orderRepo.Create(order); err != nil {
 		return nil, nil, fmt.Errorf("failed to create order: %w", err)
 	}
 
@@ -81,7 +98,7 @@ func (s *OrderService) CreateOrder(req *CreateOrderRequest) (*models.Order, *pay
 		CustomerName:  order.CustomerName,
 		Items:         req.Items,
 		TotalAmount:   order.TotalAmount,
-		Currency:      order.Currency,
+		Currency:      "IDR",
 		Status:        order.PaymentStatus,
 		CreatedAt:     order.CreatedAt,
 	}
@@ -102,6 +119,17 @@ func (s *OrderService) CreateOrder(req *CreateOrderRequest) (*models.Order, *pay
 
 	// Send payment instructions to customer via WhatsApp
 	s.sendPaymentInstructions(req.CustomerPhone, order, result)
+
+	// Notify tenant admin about new order
+	if s.notificationSvc != nil {
+		tenantAdmin := s.getTenantAdminContact(order.ClientID)
+		if tenantAdmin != nil {
+			itemsText := s.formatItemsForNotification(req.Items)
+			if err := s.notificationSvc.NotifyNewOrder(tenantAdmin, orderNumber, req.CustomerPhone, req.TotalAmount, itemsText); err != nil {
+				log.Printf("⚠️  Failed to send admin notification: %v", err)
+			}
+		}
+	}
 
 	return order, result, nil
 }
@@ -135,11 +163,21 @@ func (s *OrderService) ConfirmPayment(orderID string, paymentMethod, reference s
 	// Notify customer
 	s.sendPaymentConfirmation(order)
 
+	// Notify tenant admin
+	if s.notificationSvc != nil {
+		tenantAdmin := s.getTenantAdminContact(order.ClientID)
+		if tenantAdmin != nil {
+			if err := s.notificationSvc.NotifyPaymentConfirmed(tenantAdmin, order.OrderNumber, order.CustomerPhone, order.TotalAmount); err != nil {
+				log.Printf("⚠️  Failed to send payment confirmation notification to admin: %v", err)
+			}
+		}
+	}
+
 	return nil
 }
 
-// CancelOrder cancels an order and its payment
-func (s *OrderService) CancelOrder(orderID string) error {
+// CancelOrder cancels an order and its payment with optional reason
+func (s *OrderService) CancelOrder(orderID string, reason string) error {
 	order, err := s.orderRepo.GetByID(orderID)
 	if err != nil {
 		return err
@@ -165,11 +203,33 @@ func (s *OrderService) CancelOrder(orderID string) error {
 		return err
 	}
 
-	log.Printf("✅ Order cancelled: %s", order.OrderNumber)
+	log.Printf("✅ Order cancelled: %s (Reason: %s)", order.OrderNumber, reason)
 
-	// Notify customer
-	s.whatsappSvc.SendMessage(order.CustomerPhone,
-		fmt.Sprintf("❌ Order #%s telah dibatalkan.", order.OrderNumber))
+	// Default reason if not provided
+	if reason == "" {
+		reason = "Maaf, pesanan tidak dapat diproses"
+	}
+
+	// Notify customer with friendly message
+	customerMessage := fmt.Sprintf(
+		"😔 *Mohon Maaf*\n\n"+
+			"Pesanan Anda *#%s* telah dibatalkan.\n\n"+
+			"*Alasan:* %s\n\n"+
+			"Silakan hubungi kami jika ada pertanyaan. Terima kasih atas pengertiannya! 🙏",
+		order.OrderNumber,
+		reason,
+	)
+	s.whatsappSvc.SendMessage(order.CustomerPhone, customerMessage)
+
+	// Notify tenant admin
+	if s.notificationSvc != nil {
+		tenantAdmin := s.getTenantAdminContact(order.ClientID)
+		if tenantAdmin != nil {
+			if err := s.notificationSvc.NotifyOrderCancelled(tenantAdmin, order.OrderNumber, order.CustomerPhone, reason); err != nil {
+				log.Printf("⚠️  Failed to send cancellation notification to admin: %v", err)
+			}
+		}
+	}
 
 	return nil
 }
@@ -260,7 +320,131 @@ func formatPrice(amount float64) string {
 	return fmt.Sprintf("%.0f", amount)
 }
 
+// formatItemsForNotification formats order items for notification message
+func (s *OrderService) formatItemsForNotification(items []payment.OrderItem) string {
+	var itemsText string
+	for i, item := range items {
+		itemsText += fmt.Sprintf("%d. %s - %dx @ Rp %.0f = Rp %.0f",
+			i+1,
+			item.ProductName,
+			item.Quantity,
+			item.UnitPrice,
+			item.Subtotal,
+		)
+		if i < len(items)-1 {
+			itemsText += "\n"
+		}
+	}
+	return itemsText
+}
+
+// UpdateOrderRequest represents the request to update an order
+type UpdateOrderRequest struct {
+	Items       []models.OrderItem `json:"items,omitempty"`
+	TotalAmount *float64           `json:"total_amount,omitempty"`
+	AdminNotes  string             `json:"admin_notes,omitempty"`
+}
+
+// UpdateOrder updates an order (used by admin when stock verification changes order)
+func (s *OrderService) UpdateOrder(orderID string, req *UpdateOrderRequest) (*models.Order, error) {
+	order, err := s.orderRepo.GetByID(orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only allow updating pending orders
+	if order.PaymentStatus != models.PaymentStatusPending {
+		return nil, fmt.Errorf("cannot update order with status %s", order.PaymentStatus)
+	}
+
+	// Update items if provided
+	if req.Items != nil && len(req.Items) > 0 {
+		itemsJSON, err := json.Marshal(req.Items)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal items: %w", err)
+		}
+		order.Items = datatypes.JSON(itemsJSON)
+	}
+
+	// Update total amount if provided
+	if req.TotalAmount != nil {
+		order.TotalAmount = *req.TotalAmount
+	}
+
+	// Update admin notes if provided
+
+	err = s.orderRepo.Update(order)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("✅ Order updated: %s (Total: %.2f)", order.OrderNumber, order.TotalAmount)
+
+	// Notify customer about order update
+	s.sendOrderUpdateNotification(order)
+
+	return order, nil
+}
+
+// ListOrders lists orders with optional filtering
+func (s *OrderService) ListOrders(clientID string, limit int) ([]models.Order, error) {
+	return s.orderRepo.GetByClientID(clientID, limit)
+}
+
+// ListCustomerOrders lists orders for a specific customer
+func (s *OrderService) ListCustomerOrders(clientID, customerPhone string, limit int) ([]models.Order, error) {
+	return s.orderRepo.GetByCustomerPhone(clientID, customerPhone, limit)
+}
+
+// GetOrderByID retrieves an order by ID
+func (s *OrderService) GetOrderByID(orderID string) (*models.Order, error) {
+	return s.orderRepo.GetByID(orderID)
+}
+
+// GetOrderByOrderNumber retrieves an order by order number
+func (s *OrderService) GetOrderByOrderNumber(orderNumber string) (*models.Order, error) {
+	return s.orderRepo.GetByOrderNumber(orderNumber)
+}
+
+// sendOrderUpdateNotification sends notification when order is updated
+func (s *OrderService) sendOrderUpdateNotification(order *models.Order) {
+	message := fmt.Sprintf(
+		"📝 *Pesanan Diperbarui*\n\n"+
+			"No. Pesanan: *#%s*\n"+
+			"Total Baru: *Rp %s*\n\n"+
+			"%s",
+		order.OrderNumber,
+		formatPrice(order.TotalAmount),
+		"",
+	)
+
+	s.whatsappSvc.SendMessage(order.CustomerPhone, message)
+}
+
 // WhatsAppService interface for dependency injection
 type WhatsAppService interface {
 	SendMessage(to, message string) error
+}
+
+// getTenantAdminContact retrieves tenant admin contact info from client
+func (s *OrderService) getTenantAdminContact(clientID uuid.UUID) *notification.AdminContact {
+	client, err := s.clientRepo.GetByID(clientID.String())
+	if err != nil {
+		log.Printf("⚠️  Failed to get client info for notifications: %v", err)
+		return nil
+	}
+
+	return &notification.AdminContact{
+		Phone: client.WhatsAppNumber, // Tenant admin WhatsApp number
+		Email: "",                     // TODO: Add admin_email field to clients table
+		Name:  client.BusinessName,    // Business name as admin identifier
+	}
+}
+
+// NotificationService interface for dependency injection
+type NotificationService interface {
+	SendToCustomer(customerPhone, message string) error
+	NotifyNewOrder(tenantAdmin *notification.AdminContact, orderNumber, customerPhone string, totalAmount float64, items string) error
+	NotifyPaymentConfirmed(tenantAdmin *notification.AdminContact, orderNumber, customerPhone string, totalAmount float64) error
+	NotifyOrderCancelled(tenantAdmin *notification.AdminContact, orderNumber, customerPhone string, reason string) error
 }

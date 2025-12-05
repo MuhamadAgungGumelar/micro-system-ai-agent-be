@@ -7,8 +7,10 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/swagger"
 
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/email"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/kb"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/llm"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/notification"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/ocr"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/payment"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/tenant"
@@ -47,6 +49,7 @@ func main() {
 	transactionRepo := repositories.NewTransactionRepo(db.GORM)
 	workflowRepo := repositories.NewWorkflowRepo(db.GORM)
 	orderRepo := repositories.NewOrderRepo(db.GORM)
+	cartRepo := repositories.NewCartRepo(db.GORM)
 	kbRetriever := kb.NewRetriever(db.GORM)
 
 	// Init tenant resolver (for multi-tenant/multi-module routing)
@@ -71,10 +74,44 @@ func main() {
 	}
 	ocrService := ocr.NewService(ocrProvider)
 
+	// Init email service (multi-provider support)
+	var emailProvider email.Provider
+	switch cfg.EmailProvider {
+	case "resend":
+		emailProvider = email.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFrom, cfg.EmailFromName)
+	case "brevo":
+		emailProvider = email.NewBrevoProvider(cfg.BrevoAPIKey, cfg.EmailFrom, cfg.EmailFromName)
+	default:
+		// Default to Brevo
+		if cfg.BrevoAPIKey != "" {
+			emailProvider = email.NewBrevoProvider(cfg.BrevoAPIKey, cfg.EmailFrom, cfg.EmailFromName)
+		} else if cfg.ResendAPIKey != "" {
+			emailProvider = email.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFrom, cfg.EmailFromName)
+		}
+	}
+	var emailService *email.Service
+	if emailProvider != nil {
+		emailService = email.NewService(emailProvider)
+	}
+
+	// Init notification service (multi-channel)
+	var notificationService *notification.Service
+	if emailService != nil && cfg.AdminPhone != "" && cfg.AdminEmail != "" {
+		notificationService = notification.NewService(waService, emailService, cfg.AdminPhone, cfg.AdminEmail)
+	}
+
 	// Log provider info
 	log.Printf("📱 Using WhatsApp provider: %s", waService.GetProviderName())
 	log.Printf("🤖 Using LLM provider: %s", llmService.GetProviderName())
 	log.Printf("🔍 Using OCR provider: %s", ocrService.GetProviderName())
+	if emailService != nil {
+		log.Printf("📧 Using Email provider: %s", emailService.GetProviderName())
+	} else {
+		log.Printf("⚠️  Email service not configured")
+	}
+	if notificationService != nil {
+		log.Printf("🔔 Notification service enabled (Admin: %s, %s)", cfg.AdminPhone, cfg.AdminEmail)
+	}
 
 	// Init payment gateway based on config
 	paymentGateway, err := payment.NewGateway(cfg, db.GORM)
@@ -90,10 +127,14 @@ func main() {
 	}
 	defer workflowService.Shutdown()
 
-	webhookService := services.NewWebhookService(clientRepo, conversationRepo, transactionRepo, kbRetriever, llmService, waService, ocrService, tenantResolver)
+	// Init order service with payment gateway and notification
+	orderService := services.NewOrderService(orderRepo, clientRepo, paymentGateway, waService, notificationService)
 
-	// Init order service with payment gateway
-	orderService := services.NewOrderService(orderRepo, paymentGateway, waService)
+	// Init cart service
+	cartService := services.NewCartService(cartRepo, orderRepo)
+
+	// Init webhook service with cart and order services
+	webhookService := services.NewWebhookService(clientRepo, conversationRepo, transactionRepo, kbRetriever, llmService, waService, ocrService, tenantResolver, cartService, orderService)
 
 	// Init handlers
 	clientHandler := handlers.NewClientHandler(clientRepo)
@@ -104,6 +145,7 @@ func main() {
 	ocrHandler := handlers.NewOCRHandler(ocrService, llmService, transactionRepo, workflowService)
 	workflowHandler := handlers.NewWorkflowHandler(workflowService)
 	paymentHandler := handlers.NewPaymentHandler(orderService)
+	cartHandler := handlers.NewCartHandler(cartService)
 
 	// Init Fiber app
 	app := fiber.New(fiber.Config{
@@ -151,9 +193,21 @@ func main() {
 	app.Post("/workflows/:id/execute", workflowHandler.ExecuteWorkflow)
 	app.Get("/workflows/:id/executions", workflowHandler.GetWorkflowExecutions)
 
+	// Shopping Cart routes
+	app.Post("/cart/add", cartHandler.AddToCart)
+	app.Put("/cart/update", cartHandler.UpdateCartItem)
+	app.Delete("/cart/remove", cartHandler.RemoveFromCart)
+	app.Get("/cart", cartHandler.ViewCart)
+	app.Delete("/cart/clear", cartHandler.ClearCart)
+	app.Post("/cart/checkout", cartHandler.CheckoutCart)
+
 	// Order/Payment routes
 	app.Post("/orders", paymentHandler.CreateOrder)
-	app.Get("/orders/:orderNumber/status", paymentHandler.GetOrderStatus)
+	app.Get("/orders", paymentHandler.ListOrders)
+	app.Get("/orders/customer", paymentHandler.ListCustomerOrders)
+	app.Get("/orders/status/:orderNumber", paymentHandler.GetOrderStatus)
+	app.Get("/orders/:id", paymentHandler.GetOrderByID)
+	app.Put("/orders/:id", paymentHandler.UpdateOrder)
 	app.Post("/orders/:id/confirm-payment", paymentHandler.ManualPaymentConfirm)
 	app.Post("/orders/:id/cancel", paymentHandler.CancelOrder)
 
