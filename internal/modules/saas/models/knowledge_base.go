@@ -40,10 +40,10 @@ func (kb *KnowledgeBaseEntry) BeforeCreate(tx *gorm.DB) error {
 
 // Legacy structs for backward compatibility with existing code
 type KnowledgeBase struct {
-	BusinessName string    `json:"business_name"`
-	Tone         string    `json:"tone"`
-	FAQs         []FAQ     `json:"faqs"`
-	Products     []Product `json:"products"`
+	BusinessName string      `json:"business_name"`
+	Tone         string      `json:"tone"`
+	FAQs         []FAQ       `json:"faqs"`
+	Products     []KBProduct `json:"products"`
 }
 
 type FAQ struct {
@@ -51,7 +51,8 @@ type FAQ struct {
 	Answer   string `json:"answer"`
 }
 
-type Product struct {
+// KBProduct represents a simple product in knowledge base (legacy)
+type KBProduct struct {
 	Name  string  `json:"name"`
 	Price float64 `json:"price"`
 }
