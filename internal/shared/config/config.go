@@ -36,6 +36,23 @@ type Config struct {
 	// Notification Configuration
 	AdminPhone string
 	AdminEmail string
+
+	// Authentication Configuration
+	JWTSecret        string
+	GoogleClientID   string
+	GoogleClientSecret string
+
+	// Upload Configuration
+	UploadProvider     string // "local", "cloudinary", or "s3"
+	UploadBasePath     string // Local storage: base directory path
+	UploadBaseURL      string // Base URL for accessing files
+	CloudinaryCloudName string
+	CloudinaryAPIKey    string
+	CloudinaryAPISecret string
+	S3AccessKeyID       string
+	S3SecretAccessKey   string
+	S3Region            string
+	S3BucketName        string
 }
 
 func LoadConfig() *Config {
@@ -72,6 +89,23 @@ func LoadConfig() *Config {
 		// Notification
 		AdminPhone: os.Getenv("ADMIN_PHONE"),
 		AdminEmail: os.Getenv("ADMIN_EMAIL"),
+
+		// Authentication
+		JWTSecret:          os.Getenv("JWT_SECRET"),
+		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+
+		// Upload
+		UploadProvider:      os.Getenv("UPLOAD_PROVIDER"),
+		UploadBasePath:      os.Getenv("UPLOAD_BASE_PATH"),
+		UploadBaseURL:       os.Getenv("UPLOAD_BASE_URL"),
+		CloudinaryCloudName: os.Getenv("CLOUDINARY_CLOUD_NAME"),
+		CloudinaryAPIKey:    os.Getenv("CLOUDINARY_API_KEY"),
+		CloudinaryAPISecret: os.Getenv("CLOUDINARY_API_SECRET"),
+		S3AccessKeyID:       os.Getenv("S3_ACCESS_KEY_ID"),
+		S3SecretAccessKey:   os.Getenv("S3_SECRET_ACCESS_KEY"),
+		S3Region:            os.Getenv("S3_REGION"),
+		S3BucketName:        os.Getenv("S3_BUCKET_NAME"),
 	}
 
 	// Default values
@@ -102,6 +136,19 @@ func LoadConfig() *Config {
 	}
 	if cfg.EmailFromName == "" {
 		cfg.EmailFromName = "WhatsApp Bot SaaS"
+	}
+	if cfg.JWTSecret == "" {
+		cfg.JWTSecret = "development-secret-key-change-in-production" // Default for development
+		log.Println("⚠️ Using default JWT secret. Set JWT_SECRET in production!")
+	}
+	if cfg.UploadProvider == "" {
+		cfg.UploadProvider = "local" // Default to local storage
+	}
+	if cfg.UploadBasePath == "" {
+		cfg.UploadBasePath = "./uploads" // Default upload directory
+	}
+	if cfg.UploadBaseURL == "" {
+		cfg.UploadBaseURL = "http://localhost:" + cfg.Port // Default base URL
 	}
 
 	return cfg

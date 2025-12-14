@@ -65,7 +65,7 @@ func (r *kbRepo) GetKnowledgeBase(clientID string) (*models.KnowledgeBase, error
 				if priceVal, ok := content["price"].(float64); ok {
 					price = priceVal
 				}
-				kb.Products = append(kb.Products, models.Product{
+				kb.Products = append(kb.Products, models.KBProduct{
 					Name:  name,
 					Price: price,
 				})

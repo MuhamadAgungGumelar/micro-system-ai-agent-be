@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/swagger"
 
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/auth"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/email"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/kb"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/llm"
@@ -14,6 +15,7 @@ import (
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/ocr"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/payment"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/tenant"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/upload"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/whatsapp"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/handlers"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/repositories"
@@ -50,6 +52,7 @@ func main() {
 	workflowRepo := repositories.NewWorkflowRepo(db.GORM)
 	orderRepo := repositories.NewOrderRepo(db.GORM)
 	cartRepo := repositories.NewCartRepo(db.GORM)
+	productRepo := repositories.NewProductRepo(db.GORM)
 	kbRetriever := kb.NewRetriever(db.GORM)
 
 	// Init tenant resolver (for multi-tenant/multi-module routing)
@@ -133,8 +136,52 @@ func main() {
 	// Init cart service
 	cartService := services.NewCartService(cartRepo, orderRepo)
 
+	// Init product service
+	productService := services.NewProductService(productRepo)
+
 	// Init webhook service with cart and order services
 	webhookService := services.NewWebhookService(clientRepo, conversationRepo, transactionRepo, kbRetriever, llmService, waService, ocrService, tenantResolver, cartService, orderService)
+
+	// Init auth service
+	authService := auth.NewService(db.GORM, cfg.JWTSecret)
+	authHandler := auth.NewHandler(authService, cfg.GoogleClientID)
+	log.Printf("🔐 Authentication service initialized")
+
+	// Init upload service (multi-provider support)
+	var uploadProvider upload.Provider
+	switch cfg.UploadProvider {
+	case "cloudinary":
+		if cfg.CloudinaryCloudName != "" && cfg.CloudinaryAPIKey != "" && cfg.CloudinaryAPISecret != "" {
+			provider, err := upload.NewCloudinaryProvider(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret)
+			if err != nil {
+				log.Fatalf("Failed to initialize Cloudinary: %v", err)
+			}
+			uploadProvider = provider
+			log.Printf("📤 Using Upload provider: Cloudinary")
+		} else {
+			log.Println("⚠️  Cloudinary credentials not configured, falling back to local storage")
+			uploadProvider = upload.NewLocalProvider(cfg.UploadBasePath, cfg.UploadBaseURL)
+			log.Printf("📤 Using Upload provider: Local Storage")
+		}
+	case "s3":
+		if cfg.S3AccessKeyID != "" && cfg.S3SecretAccessKey != "" && cfg.S3Region != "" && cfg.S3BucketName != "" {
+			provider, err := upload.NewS3Provider(cfg.S3AccessKeyID, cfg.S3SecretAccessKey, cfg.S3Region, cfg.S3BucketName)
+			if err != nil {
+				log.Fatalf("Failed to initialize S3: %v", err)
+			}
+			uploadProvider = provider
+			log.Printf("📤 Using Upload provider: AWS S3")
+		} else {
+			log.Println("⚠️  S3 credentials not configured, falling back to local storage")
+			uploadProvider = upload.NewLocalProvider(cfg.UploadBasePath, cfg.UploadBaseURL)
+			log.Printf("📤 Using Upload provider: Local Storage")
+		}
+	default:
+		// Default to local storage
+		uploadProvider = upload.NewLocalProvider(cfg.UploadBasePath, cfg.UploadBaseURL)
+		log.Printf("📤 Using Upload provider: Local Storage")
+	}
+	uploadService := upload.NewService(uploadProvider)
 
 	// Init handlers
 	clientHandler := handlers.NewClientHandler(clientRepo)
@@ -146,6 +193,8 @@ func main() {
 	workflowHandler := handlers.NewWorkflowHandler(workflowService)
 	paymentHandler := handlers.NewPaymentHandler(orderService)
 	cartHandler := handlers.NewCartHandler(cartService)
+	productHandler := handlers.NewProductHandler(productService)
+	uploadHandler := upload.NewHandler(uploadService)
 
 	// Init Fiber app
 	app := fiber.New(fiber.Config{
@@ -160,6 +209,37 @@ func main() {
 
 	// Health check
 	app.Get("/health", healthHandler.GetHealth)
+
+	// Authentication routes (public - no auth required)
+	authGroup := app.Group("/auth")
+	authGroup.Post("/register", authHandler.Register)
+	authGroup.Post("/login", authHandler.Login)
+	authGroup.Post("/google", authHandler.LoginWithGoogle)
+	authGroup.Post("/refresh", authHandler.RefreshToken)
+
+	// Protected auth routes (require authentication)
+	authGroup.Post("/logout", auth.AuthMiddleware(authService), authHandler.Logout)
+	authGroup.Get("/me", auth.AuthMiddleware(authService), authHandler.Me)
+
+	// Product routes (protected - require authentication)
+	productsGroup := app.Group("/products", auth.AuthMiddleware(authService))
+	productsGroup.Post("/", productHandler.CreateProduct)
+	productsGroup.Get("/", productHandler.ListProducts)
+	productsGroup.Get("/:id", productHandler.GetProduct)
+	productsGroup.Put("/:id", productHandler.UpdateProduct)
+	productsGroup.Delete("/:id", productHandler.DeleteProduct)
+	productsGroup.Patch("/:id/stock", productHandler.UpdateStock)
+	productsGroup.Patch("/:id/toggle", productHandler.ToggleProductStatus)
+
+	// Upload routes (protected - require authentication)
+	uploadGroup := app.Group("/upload", auth.AuthMiddleware(authService))
+	uploadGroup.Post("/", uploadHandler.UploadFile)
+	uploadGroup.Post("/product", uploadHandler.UploadProductImage)
+	uploadGroup.Delete("/", uploadHandler.DeleteFile)
+	uploadGroup.Get("/info", uploadHandler.GetProviderInfo)
+
+	// Static file serving for local uploads
+	app.Static("/uploads", cfg.UploadBasePath)
 
 	// Client routes
 	app.Get("/clients", clientHandler.GetActiveClients)
