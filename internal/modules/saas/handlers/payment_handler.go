@@ -92,8 +92,8 @@ func (h *PaymentHandler) MidtransWebhook(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "missing transaction_status"})
 	}
 
-	paymentType := notification["payment_type"].(string)
-	transactionID := notification["transaction_id"].(string)
+	paymentType, _ := notification["payment_type"].(string)
+	transactionID, _ := notification["transaction_id"].(string)
 
 	log.Printf("📋 Order: %s, Status: %s, Type: %s, TxID: %s",
 		orderID, transactionStatus, paymentType, transactionID)

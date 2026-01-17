@@ -140,7 +140,7 @@ func main() {
 	productService := services.NewProductService(productRepo)
 
 	// Init webhook service with cart and order services
-	webhookService := services.NewWebhookService(clientRepo, conversationRepo, transactionRepo, kbRetriever, llmService, waService, ocrService, tenantResolver, cartService, orderService)
+	webhookService := services.NewWebhookService(clientRepo, conversationRepo, transactionRepo, kbRetriever, llmService, waService, ocrService, tenantResolver, cartService, orderService, cfg)
 
 	// Init auth service
 	authService := auth.NewService(db.GORM, cfg.JWTSecret)
@@ -160,7 +160,11 @@ func main() {
 			log.Printf("📤 Using Upload provider: Cloudinary")
 		} else {
 			log.Println("⚠️  Cloudinary credentials not configured, falling back to local storage")
-			uploadProvider = upload.NewLocalProvider(cfg.UploadBasePath, cfg.UploadBaseURL)
+			provider, err := upload.NewLocalProvider(cfg.UploadBasePath, cfg.UploadBaseURL)
+			if err != nil {
+				log.Fatalf("Failed to initialize local storage: %v", err)
+			}
+			uploadProvider = provider
 			log.Printf("📤 Using Upload provider: Local Storage")
 		}
 	case "s3":
@@ -173,12 +177,20 @@ func main() {
 			log.Printf("📤 Using Upload provider: AWS S3")
 		} else {
 			log.Println("⚠️  S3 credentials not configured, falling back to local storage")
-			uploadProvider = upload.NewLocalProvider(cfg.UploadBasePath, cfg.UploadBaseURL)
+			provider, err := upload.NewLocalProvider(cfg.UploadBasePath, cfg.UploadBaseURL)
+			if err != nil {
+				log.Fatalf("Failed to initialize local storage: %v", err)
+			}
+			uploadProvider = provider
 			log.Printf("📤 Using Upload provider: Local Storage")
 		}
 	default:
 		// Default to local storage
-		uploadProvider = upload.NewLocalProvider(cfg.UploadBasePath, cfg.UploadBaseURL)
+		provider, err := upload.NewLocalProvider(cfg.UploadBasePath, cfg.UploadBaseURL)
+		if err != nil {
+			log.Fatalf("Failed to initialize local storage: %v", err)
+		}
+		uploadProvider = provider
 		log.Printf("📤 Using Upload provider: Local Storage")
 	}
 	uploadService := upload.NewService(uploadProvider)

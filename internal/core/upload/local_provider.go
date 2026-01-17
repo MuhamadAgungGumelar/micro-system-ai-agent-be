@@ -20,17 +20,17 @@ type LocalProvider struct {
 }
 
 // NewLocalProvider creates a new local file storage provider
-func NewLocalProvider(basePath, baseURL string) *LocalProvider {
+func NewLocalProvider(basePath, baseURL string) (*LocalProvider, error) {
 	// Create base directory if it doesn't exist
 	if err := os.MkdirAll(basePath, 0755); err != nil {
-		panic(fmt.Sprintf("Failed to create upload directory: %v", err))
+		return nil, fmt.Errorf("failed to create upload directory: %w", err)
 	}
 
 	return &LocalProvider{
 		basePath:   basePath,
 		baseURL:    baseURL,
 		publicPath: "/uploads/",
-	}
+	}, nil
 }
 
 // Upload uploads a file to local filesystem
