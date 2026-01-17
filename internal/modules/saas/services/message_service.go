@@ -28,6 +28,23 @@ type MessageService struct {
 var lastMessageTime = make(map[string]time.Time)
 var messageMutex sync.Mutex
 
+const (
+	messageRateLimit  = 2 * time.Second  // Minimum time between messages
+	cleanupInterval   = 5 * time.Minute  // How long to keep entries
+	cleanupTriggerAge = 10 * time.Minute // Trigger cleanup when entry is this old
+)
+
+// cleanupOldRateLimitEntries removes entries older than specified duration
+// Must be called with messageMutex locked
+func cleanupOldRateLimitEntries(olderThan time.Duration) {
+	now := time.Now()
+	for key, lastTime := range lastMessageTime {
+		if now.Sub(lastTime) > olderThan {
+			delete(lastMessageTime, key)
+		}
+	}
+}
+
 func NewMessageService(
 	wa *whatsapp.Service,
 	llmClient *llm.Client,
@@ -53,15 +70,23 @@ func (s *MessageService) HandleIncomingMessage(clientID string, evt *events.Mess
 		return
 	}
 
-	// Rate limiting
+	// Rate limiting with automatic cleanup
 	messageMutex.Lock()
 	lastTime, exists := lastMessageTime[from]
-	if exists && time.Since(lastTime) < 2*time.Second {
+	now := time.Now()
+
+	if exists && now.Sub(lastTime) < messageRateLimit {
 		messageMutex.Unlock()
 		log.Printf("⚠️ Rate limit: ignoring message from %s (too fast)", from)
 		return
 	}
-	lastMessageTime[from] = time.Now()
+	lastMessageTime[from] = now
+
+	// Cleanup old entries to prevent memory leak (every ~100 requests)
+	if len(lastMessageTime) > 100 {
+		cleanupOldRateLimitEntries(cleanupInterval)
+	}
+
 	messageMutex.Unlock()
 
 	log.Printf("📩 [%s] message from %s: %s", clientID, from, text)

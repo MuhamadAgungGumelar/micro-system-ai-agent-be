@@ -112,7 +112,10 @@ func (s *OrderService) CreateOrder(req *CreateOrderRequest) (*models.Order, *pay
 	// Update order with payment details
 	if result.PaymentLink != "" {
 		order.PaymentLink = result.PaymentLink
-		s.orderRepo.Update(order)
+		if err := s.orderRepo.Update(order); err != nil {
+			log.Printf("⚠️  Failed to update payment link for order %s: %v", orderNumber, err)
+			// Continue anyway, payment link in response is still valid
+		}
 	}
 
 	log.Printf("✅ Payment initiated for order %s via %s", orderNumber, s.paymentGateway.Name())
@@ -273,7 +276,9 @@ func (s *OrderService) syncPaymentStatus(order *models.Order, paymentStatus *pay
 		s.sendPaymentConfirmation(order)
 	}
 
-	s.orderRepo.Update(order)
+	if err := s.orderRepo.Update(order); err != nil {
+		log.Printf("⚠️  Failed to update order %s: %v", order.OrderNumber, err)
+	}
 }
 
 // generateOrderNumber generates a unique order number

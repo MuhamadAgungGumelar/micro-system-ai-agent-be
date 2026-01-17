@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -53,6 +54,17 @@ type Config struct {
 	S3SecretAccessKey   string
 	S3Region            string
 	S3BucketName        string
+
+	// Vector Database Configuration
+	VectorProvider      string // "qdrant_cloud" or "qdrant_self_hosted"
+	QdrantCloudURL      string // Cloud: https://xxx.cloud.qdrant.io
+	QdrantCloudAPIKey   string // Cloud: API key
+	QdrantSelfHostedHost string // Self-hosted: hostname (default: localhost)
+	QdrantSelfHostedPort int    // Self-hosted: gRPC port (default: 6334)
+
+	// Embedding Configuration
+	EmbeddingProvider string // "openai" or "gemini" (future)
+	EmbeddingModel    string // OpenAI: "text-embedding-3-small" or "text-embedding-3-large"
 }
 
 func LoadConfig() *Config {
@@ -106,6 +118,23 @@ func LoadConfig() *Config {
 		S3SecretAccessKey:   os.Getenv("S3_SECRET_ACCESS_KEY"),
 		S3Region:            os.Getenv("S3_REGION"),
 		S3BucketName:        os.Getenv("S3_BUCKET_NAME"),
+
+		// Vector Database
+		VectorProvider:       os.Getenv("VECTOR_PROVIDER"),
+		QdrantCloudURL:       os.Getenv("QDRANT_CLOUD_URL"),
+		QdrantCloudAPIKey:    os.Getenv("QDRANT_CLOUD_API_KEY"),
+		QdrantSelfHostedHost: os.Getenv("QDRANT_HOST"),
+
+		// Embedding
+		EmbeddingProvider: os.Getenv("EMBEDDING_PROVIDER"),
+		EmbeddingModel:    os.Getenv("EMBEDDING_MODEL"),
+	}
+
+	// Parse Qdrant port (default: 6334)
+	if portStr := os.Getenv("QDRANT_PORT"); portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			cfg.QdrantSelfHostedPort = port
+		}
 	}
 
 	// Default values
@@ -138,7 +167,10 @@ func LoadConfig() *Config {
 		cfg.EmailFromName = "WhatsApp Bot SaaS"
 	}
 	if cfg.JWTSecret == "" {
-		cfg.JWTSecret = "development-secret-key-change-in-production" // Default for development
+		if cfg.Env == "production" {
+			log.Fatal("❌ JWT_SECRET is required in production environment")
+		}
+		cfg.JWTSecret = "development-secret-key-change-in-production" // Default for development only
 		log.Println("⚠️ Using default JWT secret. Set JWT_SECRET in production!")
 	}
 	if cfg.UploadProvider == "" {
@@ -149,6 +181,21 @@ func LoadConfig() *Config {
 	}
 	if cfg.UploadBaseURL == "" {
 		cfg.UploadBaseURL = "http://localhost:" + cfg.Port // Default base URL
+	}
+	if cfg.VectorProvider == "" {
+		cfg.VectorProvider = "qdrant_self_hosted" // Default to self-hosted
+	}
+	if cfg.QdrantSelfHostedHost == "" {
+		cfg.QdrantSelfHostedHost = "localhost" // Default host
+	}
+	if cfg.QdrantSelfHostedPort == 0 {
+		cfg.QdrantSelfHostedPort = 6334 // Default gRPC port
+	}
+	if cfg.EmbeddingProvider == "" {
+		cfg.EmbeddingProvider = "openai" // Default to OpenAI
+	}
+	if cfg.EmbeddingModel == "" {
+		cfg.EmbeddingModel = "text-embedding-3-small" // Default model (1536 dims, cheap)
 	}
 
 	return cfg

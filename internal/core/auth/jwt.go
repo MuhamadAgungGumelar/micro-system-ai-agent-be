@@ -17,8 +17,17 @@ type JWTService struct {
 func NewJWTService(secretKey string) *JWTService {
 	return &JWTService{
 		secretKey:            secretKey,
-		accessTokenDuration:  15 * time.Minute,      // Short-lived access token
+		accessTokenDuration:  2 * time.Hour,         // 2 hours access token (was 15 min)
 		refreshTokenDuration: 7 * 24 * time.Hour,    // 7 days refresh token
+	}
+}
+
+// NewJWTServiceWithDurations creates a new JWT service with custom durations
+func NewJWTServiceWithDurations(secretKey string, accessDuration, refreshDuration time.Duration) *JWTService {
+	return &JWTService{
+		secretKey:            secretKey,
+		accessTokenDuration:  accessDuration,
+		refreshTokenDuration: refreshDuration,
 	}
 }
 

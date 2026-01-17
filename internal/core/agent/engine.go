@@ -29,6 +29,12 @@ type ConversationLogger interface {
 	LogConversation(clientID, customerPhone, message, response string) error
 }
 
+const (
+	messageRateLimit  = 2 * time.Second  // Minimum time between messages
+	cleanupInterval   = 5 * time.Minute  // How long to keep entries
+	cleanupThreshold  = 100              // Trigger cleanup when map has this many entries
+)
+
 func NewEngine(
 	waService *whatsapp.Service,
 	llmClient *llm.Client,
@@ -43,6 +49,17 @@ func NewEngine(
 		tenantResolver:  tenantResolver,
 		conversationLog: conversationLog,
 		lastMessageTime: make(map[string]time.Time),
+	}
+}
+
+// cleanupOldRateLimitEntries removes entries older than specified duration
+// Must be called with e.messageMutex locked
+func (e *Engine) cleanupOldRateLimitEntries(olderThan time.Duration) {
+	now := time.Now()
+	for key, lastTime := range e.lastMessageTime {
+		if now.Sub(lastTime) > olderThan {
+			delete(e.lastMessageTime, key)
+		}
 	}
 }
 
@@ -88,15 +105,23 @@ func (e *Engine) HandleMessage(evt interface{}) {
 		return
 	}
 
-	// Rate limiting per user
+	// Rate limiting per user with automatic cleanup
 	e.messageMutex.Lock()
 	lastTime, exists := e.lastMessageTime[from]
-	if exists && time.Since(lastTime) < 2*time.Second {
+	now := time.Now()
+
+	if exists && now.Sub(lastTime) < messageRateLimit {
 		e.messageMutex.Unlock()
 		log.Printf("⚠️ Rate limit: ignoring message from %s (too fast)", from)
 		return
 	}
-	e.lastMessageTime[from] = time.Now()
+	e.lastMessageTime[from] = now
+
+	// Cleanup old entries to prevent memory leak
+	if len(e.lastMessageTime) > cleanupThreshold {
+		e.cleanupOldRateLimitEntries(cleanupInterval)
+	}
+
 	e.messageMutex.Unlock()
 
 	// Resolve tenant context

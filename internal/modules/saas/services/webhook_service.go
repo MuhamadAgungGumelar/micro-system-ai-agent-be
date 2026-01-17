@@ -18,6 +18,7 @@ import (
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/core/whatsapp"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/models"
 	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/modules/saas/repositories"
+	"github.com/MuhamadAgungGumelar/micro-system-ai-agent-be/internal/shared/config"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 )
@@ -34,6 +35,7 @@ type WebhookService struct {
 	tenantResolver   *tenant.Resolver
 	cartService      *CartService
 	orderService     *OrderService
+	config           *config.Config
 }
 
 // NewWebhookService creates a new webhook service
@@ -48,6 +50,7 @@ func NewWebhookService(
 	tenantResolver *tenant.Resolver,
 	cartService *CartService,
 	orderService *OrderService,
+	cfg *config.Config,
 ) *WebhookService {
 	return &WebhookService{
 		clientRepo:       clientRepo,
@@ -60,6 +63,7 @@ func NewWebhookService(
 		tenantResolver:   tenantResolver,
 		cartService:      cartService,
 		orderService:     orderService,
+		config:           cfg,
 	}
 }
 
@@ -277,9 +281,10 @@ func (s *WebhookService) downloadImage(mediaURL string) ([]byte, error) {
 
 	// Add WAHA API key header if this is a WAHA URL
 	if strings.Contains(mediaURL, "localhost:3000") || strings.Contains(mediaURL, "/api/sessions/") {
-		// Get WAHA API key from environment
-		wahaAPIKey := "fa11b2e40b13445d97cd7008cf7b6245" // TODO: Move to config
-		req.Header.Set("X-Api-Key", wahaAPIKey)
+		// Get WAHA API key from config
+		if s.config.WameoAPIKey != "" {
+			req.Header.Set("X-Api-Key", s.config.WameoAPIKey)
+		}
 	}
 
 	// Execute request
